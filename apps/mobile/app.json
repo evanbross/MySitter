@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "MyWatcher",
+    "slug": "mywatcher",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a2e"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mywatcher.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "MyWatcher uses your location to find sitters near you.",
+        "NSCameraUsageDescription": "MyWatcher uses the camera to let you upload profile photos."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a1a2e"
+      },
+      "package": "com.mywatcher.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "CAMERA"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1a1a2e"
+        }
+      ]
+    ],
+    "scheme": "mywatcher",
+    "extra": {
+      "apiUrl": "http://localhost:8000"
+    }
+  }
+}
