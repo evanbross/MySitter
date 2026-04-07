@@ -53,7 +53,7 @@ function UserEdit() {
 
 export default function App() {
   return (
-    <Admin dataProvider={dataProvider} title="MyWatcher Admin">
+    <Admin dataProvider={dataProvider} title="mysitter Admin">
       <Resource
         name="users"
         list={UserList}

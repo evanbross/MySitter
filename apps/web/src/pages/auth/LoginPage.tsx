@@ -23,7 +23,7 @@ export default function LoginPage() {
 
   return (
     <div style={{ maxWidth: 400, margin: "80px auto", padding: 24 }}>
-      <h1>Sign in to MyWatcher</h1>
+      <h1>Sign in to mysitter</h1>
       <form onSubmit={handleSubmit} style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 12 }}>
         <input
           type="email"

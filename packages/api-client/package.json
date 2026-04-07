@@ -1,5 +1,5 @@
 {
-  "name": "@mywatcher/api-client",
+  "name": "@mysitter/api-client",
   "version": "0.0.1",
   "private": true,
   "main": "./src/index.ts",
@@ -9,7 +9,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@mywatcher/types": "*"
+    "@mysitter/types": "*"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

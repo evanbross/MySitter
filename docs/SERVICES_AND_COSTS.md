@@ -1,4 +1,4 @@
-# MyWatcher — Third-Party Services & Cost Estimates
+# mysitter — Third-Party Services & Cost Estimates
 
 ---
 
@@ -60,7 +60,7 @@ Required to publish to the Android Play Store.
 - Link to Expo for automated builds
 
 ### 9. Domain Registrar — `namecheap.com` or `cloudflare.com`
-Your domain name (e.g., `mywatcher.com`).
+Your domain name (e.g., `mysitter.com`).
 - Search and purchase your domain (~$10–15/year for a .com)
 - **Cloudflare** is recommended as the DNS provider even if you buy elsewhere — free DDoS protection, CDN, and SSL
 - Point DNS to DigitalOcean after setup

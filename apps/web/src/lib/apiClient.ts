@@ -1,4 +1,4 @@
-import { createApiClient } from "@mywatcher/api-client";
+import { createApiClient } from "@mysitter/api-client";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "/api";
 

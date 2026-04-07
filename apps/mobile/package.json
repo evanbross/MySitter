@@ -1,5 +1,5 @@
 {
-  "name": "@mywatcher/mobile",
+  "name": "@mysitter/mobile",
   "version": "0.0.1",
   "main": "expo-router/entry",
   "scripts": {
@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.4",
-    "@mywatcher/api-client": "*",
-    "@mywatcher/types": "*",
+    "@mysitter/api-client": "*",
+    "@mysitter/types": "*",
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@tanstack/react-query": "^5.62.0",
     "expo": "~52.0.28",

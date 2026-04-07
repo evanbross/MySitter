@@ -1,4 +1,4 @@
-import type { WsIncomingMessage, WsOutgoingMessage } from "@mywatcher/types";
+import type { WsIncomingMessage, WsOutgoingMessage } from "@mysitter/types";
 
 export type WsMessageHandler = (message: WsIncomingMessage) => void;
 export type WsErrorHandler = (event: Event) => void;

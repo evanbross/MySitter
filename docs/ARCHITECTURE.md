@@ -1,4 +1,4 @@
-# MyWatcher — System Architecture
+# mysitter — System Architecture
 
 > Pet & house sitting marketplace with calendar scheduling, geographic search,
 > in-app messaging, passkey-first auth, and subscription-based provider tiers.
@@ -38,7 +38,7 @@
 Managed with **Turborepo** for shared builds, type-checking, and caching.
 
 ```
-mywatcher/
+mysitter/
 ├── apps/
 │   ├── api/                  ← FastAPI backend (Python)
 │   ├── web/                  ← React + Vite (customer & provider web UI)

@@ -1,7 +1,7 @@
 [project]
-name = "mywatcher-api"
+name = "mysitter-api"
 version = "0.1.0"
-description = "MyWatcher pet & house sitting marketplace API"
+description = "mysitter pet & house sitting marketplace API"
 requires-python = ">=3.13"
 
 [tool.ruff]

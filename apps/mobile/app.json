@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "MyWatcher",
-    "slug": "mywatcher",
+    "name": "mysitter",
+    "slug": "mysitter",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,10 +13,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mywatcher.app",
+      "bundleIdentifier": "com.mysitter.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "MyWatcher uses your location to find sitters near you.",
-        "NSCameraUsageDescription": "MyWatcher uses the camera to let you upload profile photos."
+        "NSLocationWhenInUseUsageDescription": "mysitter uses your location to find sitters near you.",
+        "NSCameraUsageDescription": "mysitter uses the camera to let you upload profile photos."
       }
     },
     "android": {
@@ -24,7 +24,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a1a2e"
       },
-      "package": "com.mywatcher.app",
+      "package": "com.mysitter.app",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "CAMERA"
@@ -44,7 +44,7 @@
         }
       ]
     ],
-    "scheme": "mywatcher",
+    "scheme": "mysitter",
     "extra": {
       "apiUrl": "http://localhost:8000"
     }

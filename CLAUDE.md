@@ -1,4 +1,4 @@
-# MyWatcher — Project Instructions
+# mysitter — Project Instructions
 
 ## What This Project Is
 

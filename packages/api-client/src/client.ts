@@ -19,7 +19,7 @@ import type {
   UserUpdate,
   Availability,
   AvailabilityCreate,
-} from "@mywatcher/types";
+} from "@mysitter/types";
 
 export interface ApiClientConfig {
   baseUrl: string;

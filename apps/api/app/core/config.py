@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     )
 
     # ─── App ──────────────────────────────────────────────────────────────────
-    app_name: str = "MyWatcher API"
+    app_name: str = "mysitter API"
     debug: bool = False
     secret_key: str
 
@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     # ─── WebAuthn (Passkeys) ──────────────────────────────────────────────────
     webauthn_rp_id: str = "localhost"
-    webauthn_rp_name: str = "MyWatcher"
+    webauthn_rp_name: str = "mysitter"
     webauthn_origin: str = "http://localhost:5173"
 
     # ─── Stripe ───────────────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
 
     # ─── Resend ───────────────────────────────────────────────────────────────
     resend_api_key: str = ""
-    email_from: str = "noreply@mywatcher.com"
+    email_from: str = "noreply@mysitter.com"
 
     # ─── Mapbox ───────────────────────────────────────────────────────────────
     mapbox_secret_token: str = ""
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     spaces_endpoint: str = ""
     spaces_key: str = ""
     spaces_secret: str = ""
-    spaces_bucket: str = "mywatcher"
+    spaces_bucket: str = "mysitter"
     spaces_region: str = "nyc3"
 
 

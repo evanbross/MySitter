@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View, Text, TextInput, Button, StyleSheet, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { createApiClient } from "@mywatcher/api-client";
+import { createApiClient } from "@mysitter/api-client";
 import Constants from "expo-constants";
 
 const API_URL = Constants.expoConfig?.extra?.apiUrl ?? "http://localhost:8000";

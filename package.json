@@ -1,5 +1,5 @@
 {
-  "name": "mywatcher",
+  "name": "mysitter",
   "private": true,
   "workspaces": [
     "apps/web",
