@@ -16,11 +16,11 @@ Passkey flow overview:
     4. Client POSTs the assertion to POST /auth/passkey/authenticate
     5. Server verifies, updates sign_count, issues tokens
 """
-import io
 import uuid
 from typing import TYPE_CHECKING
 
 import pyotp
+import redis.asyncio as aioredis
 from fastapi import HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,11 +46,21 @@ if TYPE_CHECKING:
 
 _REFRESH_COOKIE = "refresh_token"
 _COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
+_CHALLENGE_TTL = 300  # 5 minutes
+
+
+def _reg_challenge_key(user_id: uuid.UUID) -> str:
+    return f"passkey:reg_challenge:{user_id}"
+
+
+def _auth_challenge_key(user_id: uuid.UUID) -> str:
+    return f"passkey:auth_challenge:{user_id}"
 
 
 class AuthService:
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(self, db: AsyncSession, redis: aioredis.Redis) -> None:
         self._db = db
+        self._redis = redis
 
     # ─── Registration ─────────────────────────────────────────────────────────
 
@@ -125,11 +135,7 @@ class AuthService:
     # ─── Passkeys ─────────────────────────────────────────────────────────────
 
     async def get_passkey_registration_options(self, user: User) -> dict:
-        """
-        Generate WebAuthn credential creation options.
-        TODO: store the challenge in Redis with a short TTL so it can be
-        verified in verify_passkey_registration().
-        """
+        """Generate WebAuthn credential creation options and cache the challenge in Redis."""
         import webauthn  # type: ignore[import-untyped]
         from webauthn.helpers.structs import (  # type: ignore[import-untyped]
             AuthenticatorSelectionCriteria,
@@ -157,17 +163,19 @@ class AuthService:
                 user_verification=UserVerificationRequirement.REQUIRED,
             ),
         )
+        await self._redis.set(_reg_challenge_key(user.id), options.challenge, ex=_CHALLENGE_TTL)
         return webauthn.helpers.options_to_json(options)
 
     async def verify_passkey_registration(self, user: User, credential_json: dict) -> dict:
-        """
-        Verify a WebAuthn registration response and persist the credential.
-        The challenge should be retrieved from Redis; for now it is a stub.
-        """
+        """Retrieve the stored challenge, verify the WebAuthn registration, and persist the credential."""
         import webauthn
 
-        # TODO: retrieve stored challenge from Redis
-        challenge = b""  # placeholder
+        challenge = await self._redis.getdel(_reg_challenge_key(user.id))
+        if not challenge:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Registration challenge expired or not found — restart the registration flow",
+            )
 
         verification = webauthn.verify_registration_response(
             credential=credential_json,
@@ -188,6 +196,7 @@ class AuthService:
         return {"verified": True}
 
     async def get_passkey_auth_options(self, email: str) -> dict:
+        """Generate WebAuthn authentication options and cache the challenge in Redis."""
         import webauthn
         from webauthn.helpers.structs import UserVerificationRequirement
 
@@ -210,26 +219,52 @@ class AuthService:
             allow_credentials=allow_credentials,
             user_verification=UserVerificationRequirement.REQUIRED,
         )
-        # TODO: store challenge in Redis keyed to email
+        await self._redis.set(_auth_challenge_key(user.id), options.challenge, ex=_CHALLENGE_TTL)
         return webauthn.helpers.options_to_json(options)
 
     async def verify_passkey_auth(self, credential_json: dict, response: Response) -> TokenResponse:
+        """
+        Look up the credential by ID, retrieve the stored challenge, verify the
+        WebAuthn assertion, update the sign count, and issue tokens.
+        """
+        import base64
+
         import webauthn
 
-        # TODO: retrieve challenge from Redis using credential_json["id"] -> email lookup
-        challenge = b""  # placeholder
+        # credential_json["id"] is base64url-encoded; pad and decode to bytes.
+        raw_id = base64.urlsafe_b64decode(credential_json["id"] + "==")
+
+        cred = await self._db.scalar(
+            select(PasskeyCredential).where(PasskeyCredential.credential_id == raw_id)
+        )
+        if not cred:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown credential")
+
+        challenge = await self._redis.getdel(_auth_challenge_key(cred.user_id))
+        if not challenge:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Auth challenge expired or not found — restart the login flow",
+            )
 
         verification = webauthn.verify_authentication_response(
             credential=credential_json,
             expected_challenge=challenge,
             expected_rp_id=settings.webauthn_rp_id,
             expected_origin=settings.webauthn_origin,
-            credential_public_key=b"",  # retrieved from DB by credential_id
-            credential_current_sign_count=0,
+            credential_public_key=cred.public_key,
+            credential_current_sign_count=cred.sign_count,
         )
 
-        # TODO: update sign_count in DB, load user, issue tokens
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Full passkey auth coming in Phase 1")
+        cred.sign_count = verification.new_sign_count
+        await self._db.commit()
+
+        user = await self._db.get(User, cred.user_id)
+        if not user or not user.is_active:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account inactive")
+
+        self._set_refresh_cookie(response, create_refresh_token(user.id))
+        return TokenResponse(access_token=create_access_token(user.id))
 
     # ─── TOTP ─────────────────────────────────────────────────────────────────
 

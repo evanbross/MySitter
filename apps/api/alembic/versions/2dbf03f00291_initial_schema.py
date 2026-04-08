@@ -84,7 +84,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_id')
     )
-    op.create_index('idx_provider_profiles_location', 'provider_profiles', ['location'], unique=False, postgresql_using='gist')
     op.create_table('availability',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('provider_id', sa.UUID(), nullable=False),
@@ -180,7 +179,6 @@ def downgrade() -> None:
     op.drop_table('bookings')
     op.drop_index(op.f('ix_availability_provider_id'), table_name='availability')
     op.drop_table('availability')
-    op.drop_index('idx_provider_profiles_location', table_name='provider_profiles', postgresql_using='gist')
     op.drop_table('provider_profiles')
     op.drop_index(op.f('ix_passkey_credentials_user_id'), table_name='passkey_credentials')
     op.drop_table('passkey_credentials')

@@ -2,7 +2,7 @@
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.booking import Booking, BookingStatus, Review
@@ -60,12 +60,11 @@ class BookingService:
         if filter_status:
             q = q.where(Booking.status == filter_status)
 
-        total = await self._db.scalar(q.with_only_columns(select(Booking).c.id if False else __import__('sqlalchemy').func.count()))  # rough count
-        items = list((await self._db.execute(
-            q.order_by(Booking.start_at.desc())
-             .offset((page - 1) * _PAGE_SIZE)
-             .limit(_PAGE_SIZE)
-        )).scalars().all())
+        count_q = select(func.count()).select_from(q.subquery())
+        total = await self._db.scalar(count_q)
+
+        items_q = q.order_by(Booking.start_at.desc()).offset((page - 1) * _PAGE_SIZE).limit(_PAGE_SIZE)
+        items = list((await self._db.execute(items_q)).scalars().all())
 
         return PaginatedBookings(
             items=[BookingResponse.model_validate(b) for b in items],

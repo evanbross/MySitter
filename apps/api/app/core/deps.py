@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
+from app.core.redis import get_redis  # noqa: F401 — re-exported for convenience
 from app.core.security import decode_token
 from app.models.user import User, UserRole
 
