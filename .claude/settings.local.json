@@ -8,7 +8,21 @@
       "Bash(py -3.12 --version)",
       "Bash(py -3.11 --version)",
       "Bash(py -3.10 --version)",
-      "Bash(py:*)"
+      "Bash(py:*)",
+      "Bash(.venv/Scripts/pip install:*)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(cmd /c \"cd /d F:\\\\Evan-F\\\\Projects\\\\MySitter\\\\apps\\\\api && .venv\\\\Scripts\\\\pip install pytest==8.3.4 pytest-asyncio==0.24.0 httpx==0.28.1 fakeredis>=2.0 2>&1\")",
+      "Bash(cmd:*)",
+      "Bash(powershell:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(/f/Evan-F/Projects/MySitter/apps/api/.venv/Scripts/pip.exe install:*)",
+      "Bash(/f/Evan-F/Projects/MySitter/apps/api/.venv/Scripts/python.exe -m pip install pytest==8.3.4)",
+      "Bash(/f/Evan-F/Projects/MySitter/apps/api/.venv/Scripts/python.exe -m pip install pytest-asyncio==0.24.0 httpx==0.28.1 fakeredis)",
+      "Bash(/f/Evan-F/Projects/MySitter/apps/api/.venv/Scripts/python.exe -m pytest tests/ --collect-only -q)",
+      "Bash(/f/Evan-F/Projects/MySitter/apps/api/.venv/Scripts/python.exe -m pip install \"pydantic[email]\" -q)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(/f/Evan-F/Projects/MySitter/apps/web/node_modules/.bin/tsc --noEmit)",
+      "Bash(/f/Evan-F/Projects/MySitter/node_modules/.bin/tsc --noEmit -p /f/Evan-F/Projects/MySitter/apps/web/tsconfig.json)"
     ]
   }
 }

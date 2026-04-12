@@ -12,15 +12,16 @@ from app.models.user import User, UserRole
 from app.schemas.provider import (
     AvailabilityCreateRequest,
     AvailabilityResponse,
+    AvailabilityUpdateRequest,
+    PaginatedProviderSearch,
     ProviderProfileResponse,
     ProviderProfileUpdateRequest,
-    ProviderSearchResult,
 )
 
 router = APIRouter(prefix="/providers", tags=["providers"])
 
 
-@router.get("/search", response_model=list[ProviderSearchResult])
+@router.get("/search", response_model=PaginatedProviderSearch)
 async def search_providers(
     lat: float = Query(..., ge=-90, le=90),
     lng: float = Query(..., ge=-180, le=180),
@@ -28,7 +29,7 @@ async def search_providers(
     service_type: str | None = Query(None),
     page: int = Query(1, ge=1),
     db: AsyncSession = Depends(get_db),
-) -> list[ProviderSearchResult]:
+) -> PaginatedProviderSearch:
     from app.services.provider_service import ProviderService
     return await ProviderService(db).search(lat, lng, radius_miles, service_type, page)
 
@@ -78,6 +79,17 @@ async def create_availability(
 ) -> AvailabilityResponse:
     from app.services.provider_service import ProviderService
     return await ProviderService(db).create_availability(current_user.id, body)
+
+
+@router.patch("/me/availability/{availability_id}", response_model=AvailabilityResponse)
+async def update_my_availability(
+    availability_id: uuid.UUID,
+    body: AvailabilityUpdateRequest,
+    current_user: User = Depends(require_role(UserRole.PROVIDER)),
+    db: AsyncSession = Depends(get_db),
+) -> AvailabilityResponse:
+    from app.services.provider_service import ProviderService
+    return await ProviderService(db).update_availability(current_user.id, availability_id, body)
 
 
 @router.delete("/me/availability/{availability_id}", status_code=204)

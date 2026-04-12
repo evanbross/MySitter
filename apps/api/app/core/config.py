@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # ─── Stripe ───────────────────────────────────────────────────────────────
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
+    stripe_price_id_basic: str = ""
+    stripe_price_id_pro: str = ""
+    stripe_price_id_premium: str = ""
 
     # ─── Twilio ───────────────────────────────────────────────────────────────
     twilio_account_sid: str = ""

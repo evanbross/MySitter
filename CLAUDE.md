@@ -45,6 +45,17 @@ Run everything locally: `docker-compose up` (postgres + redis), then `npm run de
 - Prefer editing existing files over creating new ones
 - No broad exception catches — catch specific exceptions and handle them explicitly
 - Validate at system boundaries (user input, external APIs); trust internal guarantees
+- **Never use bare `pass` for stub implementations** — always use `raise NotImplementedError("not yet implemented")`. A stub that raises fails loudly; a `pass` silently does nothing and can go undetected for a long time.
+- **Registration and creation flows must account for all downstream resource creation** — if the architecture requires related rows in other tables when a new entity is created (e.g. a `ProviderProfile` when a PROVIDER `User` registers), create them in the same transaction or raise `NotImplementedError` with a clear comment if intentionally deferred. Never silently omit them.
+
+## Context Window Management
+
+Proactively suggest a `/clear` or `/compact` when the conversation is getting long — specifically:
+- After completing a multi-step implementation block (e.g., finishing a numbered Phase step)
+- When 5+ large files have been read in the session
+- Before starting a new major phase or feature area
+
+Mention it briefly at the end of a response: e.g., "Good point to `/clear` before continuing with Step 4."
 
 ## Environment
 

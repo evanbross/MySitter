@@ -10,7 +10,7 @@ geoalchemy2==0.15.2
 psycopg2-binary==2.9.10   # used by alembic env (sync) for migrations
 
 # ─── Validation & settings ────────────────────────────────────────────────────
-pydantic==2.10.3
+pydantic[email]==2.10.3
 pydantic-settings==2.7.0
 
 # ─── Auth ─────────────────────────────────────────────────────────────────────

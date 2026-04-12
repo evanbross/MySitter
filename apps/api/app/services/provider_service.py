@@ -9,9 +9,12 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.provider import Availability, ProviderProfile
+from app.models.user import User
 from app.schemas.provider import (
     AvailabilityCreateRequest,
     AvailabilityResponse,
+    AvailabilityUpdateRequest,
+    PaginatedProviderSearch,
     ProviderProfileResponse,
     ProviderProfileUpdateRequest,
     ProviderSearchResult,
@@ -31,42 +34,55 @@ class ProviderService:
         radius_miles: int,
         service_type: str | None,
         page: int,
-    ) -> list[ProviderSearchResult]:
+    ) -> PaginatedProviderSearch:
         radius_m = radius_miles * _MILES_TO_METERS
-        point = func.ST_MakePoint(lng, lat)
+        point_wkt = f"SRID=4326;POINT({lng} {lat})"
 
-        q = (
+        base_q = (
             select(
                 ProviderProfile,
+                User.display_name,
+                User.avatar_url,
                 func.ST_Distance(
                     ProviderProfile.location,
-                    func.ST_SetSRID(point, 4326).cast(type_=None),
+                    func.ST_GeogFromText(point_wkt),
                 ).label("dist_m"),
             )
+            .join(User, User.id == ProviderProfile.user_id)
             .where(ProviderProfile.is_active.is_(True))
             .where(
                 ST_DWithin(
                     ProviderProfile.location,
-                    func.ST_SetSRID(point, 4326),
+                    func.ST_GeogFromText(point_wkt),
                     radius_m,
                 )
             )
-            .order_by("dist_m")
-            .offset((page - 1) * 20)
-            .limit(20)
         )
 
         if service_type:
-            q = q.where(ProviderProfile.services.contains([service_type]))
+            base_q = base_q.where(ProviderProfile.services.contains([service_type]))
 
-        rows = (await self._db.execute(q)).all()
+        count_q = select(func.count()).select_from(base_q.subquery())
+        total = await self._db.scalar(count_q)
 
-        results = []
-        for profile, dist_m in rows:
-            data = ProviderSearchResult.model_validate(profile)
-            data.distance_miles = round(dist_m / _MILES_TO_METERS, 2)
-            results.append(data)
-        return results
+        rows_q = base_q.order_by("dist_m").offset((page - 1) * 20).limit(20)
+        rows = (await self._db.execute(rows_q)).all()
+
+        items = []
+        for profile, display_name, avatar_url, dist_m in rows:
+            item = ProviderSearchResult.model_validate(profile)
+            item.display_name = display_name
+            item.avatar_url = avatar_url
+            item.distance_miles = round(dist_m / _MILES_TO_METERS, 2)
+            items.append(item)
+
+        return PaginatedProviderSearch(
+            items=items,
+            total=total or 0,
+            page=page,
+            page_size=20,
+            has_next=len(items) == 20,
+        )
 
     async def get_by_id(self, provider_id: uuid.UUID) -> ProviderProfile:
         profile = await self._db.scalar(
@@ -122,6 +138,28 @@ class ProviderService:
             rrule_string=body.rrule_string,
         )
         self._db.add(block)
+        await self._db.commit()
+        await self._db.refresh(block)
+        return block
+
+    async def update_availability(
+        self, user_id: uuid.UUID, availability_id: uuid.UUID, body: AvailabilityUpdateRequest
+    ) -> Availability:
+        profile = await self.get_by_user_id(user_id)
+        block = await self._db.scalar(
+            select(Availability).where(
+                Availability.id == availability_id,
+                Availability.provider_id == profile.id,
+            )
+        )
+        if not block:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        if body.start_at is not None:
+            block.start_at = body.start_at
+        if body.end_at is not None:
+            block.end_at = body.end_at
+        if body.rrule_string is not None:
+            block.rrule_string = body.rrule_string
         await self._db.commit()
         await self._db.refresh(block)
         return block

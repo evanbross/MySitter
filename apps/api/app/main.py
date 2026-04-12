@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import admin, auth, bookings, messages, providers, users, websocket
+from app.routers import admin, auth, billing, bookings, messages, providers, users, websocket
 
 
 @asynccontextmanager
@@ -37,6 +37,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(providers.router)
 app.include_router(bookings.router)
+app.include_router(billing.router)
 app.include_router(messages.router)
 app.include_router(admin.router)
 app.include_router(websocket.router)

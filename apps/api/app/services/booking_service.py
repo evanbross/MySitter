@@ -1,5 +1,6 @@
 """BookingService: create, list, confirm, cancel bookings and post reviews."""
 import uuid
+from datetime import datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select
@@ -78,19 +79,57 @@ class BookingService:
         booking = await self._db.scalar(select(Booking).where(Booking.id == booking_id))
         if not booking:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-        self._assert_participant(user, booking)
+
+        provider_profile_id: uuid.UUID | None = None
+        if user.role == UserRole.PROVIDER:
+            from app.models.provider import ProviderProfile
+            provider_profile_id = await self._db.scalar(
+                select(ProviderProfile.id).where(ProviderProfile.user_id == user.id)
+            )
+        self._assert_participant(user, booking, provider_profile_id)
         return booking
 
     async def confirm(self, user: User, booking_id: uuid.UUID) -> Booking:
+        if user.role != UserRole.PROVIDER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only providers can confirm bookings",
+            )
         booking = await self.get_for_user(user, booking_id)
         if booking.status != BookingStatus.PENDING:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Booking is not pending")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Booking is not pending")
+        await self._check_conflicts(booking.provider_id, booking.start_at, booking.end_at, booking.id)
         booking.status = BookingStatus.CONFIRMED
         await self._db.commit()
         await self._db.refresh(booking)
         from app.workers.tasks import send_booking_notification
         send_booking_notification.delay(str(booking.id), "CONFIRMED")
+        if booking.rrule_string:
+            from app.workers.tasks import expand_recurring_bookings
+            expand_recurring_bookings.delay()
         return booking
+
+    async def _check_conflicts(
+        self,
+        provider_id: uuid.UUID,
+        start_at: datetime,
+        end_at: datetime,
+        exclude_booking_id: uuid.UUID | None = None,
+    ) -> None:
+        """Raise 409 if the provider already has a confirmed booking overlapping this time range."""
+        q = select(Booking).where(
+            Booking.provider_id == provider_id,
+            Booking.status == BookingStatus.CONFIRMED,
+            Booking.start_at < end_at,
+            Booking.end_at > start_at,
+        )
+        if exclude_booking_id:
+            q = q.where(Booking.id != exclude_booking_id)
+        if await self._db.scalar(q):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Provider has a conflicting confirmed booking",
+            )
 
     async def cancel(self, user: User, booking_id: uuid.UUID) -> Booking:
         booking = await self.get_for_user(user, booking_id)
@@ -131,8 +170,15 @@ class BookingService:
         return review
 
     @staticmethod
-    def _assert_participant(user: User, booking: Booking) -> None:
-        is_customer = booking.customer_id == user.id
-        # Provider check would require a join; simplified here
-        if not is_customer and user.role not in (UserRole.PROVIDER, UserRole.ADMIN):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    def _assert_participant(
+        user: User,
+        booking: Booking,
+        provider_profile_id: uuid.UUID | None = None,
+    ) -> None:
+        if user.role == UserRole.ADMIN:
+            return
+        if booking.customer_id == user.id:
+            return
+        if provider_profile_id and booking.provider_id == provider_profile_id:
+            return
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)

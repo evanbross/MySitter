@@ -118,6 +118,12 @@ export interface AvailabilityCreate {
   rrule_string?: string;
 }
 
+export interface AvailabilityUpdate {
+  start_at?: string;
+  end_at?: string;
+  rrule_string?: string;
+}
+
 // ─── Booking ──────────────────────────────────────────────────────────────────
 
 export interface Booking {
@@ -202,6 +208,25 @@ export interface Review {
 export interface ReviewCreate {
   rating: number;
   body?: string;
+}
+
+// ─── Billing ──────────────────────────────────────────────────────────────────
+
+export interface Subscription {
+  id: string;
+  provider_id: string;
+  stripe_subscription_id: string;
+  tier: SubscriptionTier;
+  status: string; // Stripe status: "active" | "past_due" | "incomplete" | "cancelled"
+  current_period_end: string; // ISO 8601
+}
+
+export interface SubscribeRequest {
+  tier: SubscriptionTier;
+}
+
+export interface SubscribeResponse {
+  client_secret: string;
 }
 
 // ─── Pagination ───────────────────────────────────────────────────────────────

@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 import pyotp
 import redis.asyncio as aioredis
+import stripe
 from fastapi import HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +34,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.models.provider import ProviderProfile
 from app.models.user import PasskeyCredential, User, UserRole
 from app.schemas.auth import (
     LoginRequest,
@@ -84,6 +86,28 @@ class AuthService:
         self._db.add(user)
         await self._db.commit()
         await self._db.refresh(user)
+
+        if user.role == UserRole.PROVIDER:
+            stripe_customer_id: str | None = None
+            if settings.stripe_secret_key:
+                stripe.api_key = settings.stripe_secret_key
+                customer = stripe.Customer.create(
+                    email=user.email,
+                    name=user.display_name,
+                    metadata={"user_id": str(user.id)},
+                )
+                stripe_customer_id = customer["id"]
+
+            profile = ProviderProfile(
+                user_id=user.id,
+                stripe_customer_id=stripe_customer_id,
+                services=[],
+                service_radius_miles=10,
+                is_active=False,
+            )
+            self._db.add(profile)
+            await self._db.commit()
+
         return TokenResponse(access_token=create_access_token(user.id))
 
     # ─── Password Login ───────────────────────────────────────────────────────

@@ -50,7 +50,21 @@ class AvailabilityResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PaginatedProviderSearch(BaseModel):
+    items: list[ProviderSearchResult]
+    total: int
+    page: int
+    page_size: int
+    has_next: bool
+
+
 class AvailabilityCreateRequest(BaseModel):
     start_at: datetime
     end_at: datetime
+    rrule_string: str | None = None
+
+
+class AvailabilityUpdateRequest(BaseModel):
+    start_at: datetime | None = None
+    end_at: datetime | None = None
     rrule_string: str | None = None

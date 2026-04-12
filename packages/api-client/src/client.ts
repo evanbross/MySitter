@@ -1,5 +1,8 @@
 import type {
   ApiError,
+  Availability,
+  AvailabilityCreate,
+  AvailabilityUpdate,
   Booking,
   BookingCreate,
   Conversation,
@@ -13,12 +16,13 @@ import type {
   ProviderSearchResult,
   Review,
   ReviewCreate,
+  SubscribeRequest,
+  SubscribeResponse,
+  Subscription,
   TokenPair,
   User,
   UserCreate,
   UserUpdate,
-  Availability,
-  AvailabilityCreate,
 } from "@mysitter/types";
 
 export interface ApiClientConfig {
@@ -80,7 +84,7 @@ export class ApiClient {
 
   auth = {
     register: (data: UserCreate) =>
-      this.request<User>("POST", "/auth/register", data, true),
+      this.request<TokenPair>("POST", "/auth/register", data, true),
 
     login: (email: string, password: string, totp_code?: string) =>
       this.request<TokenPair>(
@@ -191,6 +195,9 @@ export class ApiClient {
     createAvailability: (data: AvailabilityCreate) =>
       this.request<Availability>("POST", "/providers/me/availability", data),
 
+    updateAvailability: (availabilityId: string, data: AvailabilityUpdate) =>
+      this.request<Availability>("PATCH", `/providers/me/availability/${availabilityId}`, data),
+
     deleteAvailability: (availabilityId: string) =>
       this.request<void>("DELETE", `/providers/me/availability/${availabilityId}`),
   };
@@ -224,6 +231,22 @@ export class ApiClient {
 
     review: (bookingId: string, data: ReviewCreate) =>
       this.request<Review>("POST", `/bookings/${bookingId}/review`, data),
+  };
+
+  // ─── Billing ──────────────────────────────────────────────────────────────
+
+  billing = {
+    subscribe: (data: SubscribeRequest) =>
+      this.request<SubscribeResponse>("POST", "/billing/subscribe", data),
+
+    getPortalUrl: (returnUrl: string) =>
+      this.request<{ url: string }>(
+        "GET",
+        `/billing/portal?return_url=${encodeURIComponent(returnUrl)}`,
+      ),
+
+    getSubscription: () =>
+      this.request<Subscription | null>("GET", "/billing/subscription"),
   };
 
   // ─── Messaging ────────────────────────────────────────────────────────────
