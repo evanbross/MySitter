@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     # ─── App ──────────────────────────────────────────────────────────────────
     app_name: str = "mysitter API"
+    app_url: str = "https://mysitter.com"
     debug: bool = False
     secret_key: str
 
@@ -54,6 +55,10 @@ class Settings(BaseSettings):
     spaces_secret: str = ""
     spaces_bucket: str = "mysitter"
     spaces_region: str = "nyc3"
+
+    # ─── Multi-region ─────────────────────────────────────────────────────────
+    read_replica_url: str = ""   # postgresql+asyncpg:// for read replica; falls back to database_url if empty
+    region: str = "nyc3"         # informational — "nyc3" | "ams3" | "sgp1" etc.
 
 
 settings = Settings()  # type: ignore[call-arg]

@@ -1,0 +1,57 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { Booking, BookingCreate, PaginatedResponse } from "@mysitter/types";
+import { apiClient } from "@/lib/apiClient";
+
+interface BookingListParams {
+  status?: string;
+  page?: number;
+}
+
+export function useBookings(params?: BookingListParams) {
+  return useQuery<PaginatedResponse<Booking>>({
+    queryKey: ["bookings", params],
+    queryFn: () => apiClient.bookings.list(params),
+    staleTime: 1000 * 30,
+  });
+}
+
+export function useBooking(bookingId: string | undefined) {
+  return useQuery<Booking>({
+    queryKey: ["booking", bookingId],
+    queryFn: () => apiClient.bookings.get(bookingId!),
+    enabled: !!bookingId,
+    staleTime: 1000 * 60,
+  });
+}
+
+export function useCreateBooking() {
+  const qc = useQueryClient();
+  return useMutation<Booking, Error, BookingCreate>({
+    mutationFn: (data) => apiClient.bookings.create(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+    },
+  });
+}
+
+export function useConfirmBooking() {
+  const qc = useQueryClient();
+  return useMutation<Booking, Error, string>({
+    mutationFn: (bookingId) => apiClient.bookings.confirm(bookingId),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.setQueryData(["booking", result.id], result);
+    },
+  });
+}
+
+export function useCancelBooking() {
+  const qc = useQueryClient();
+  return useMutation<Booking, Error, string>({
+    mutationFn: (bookingId) => apiClient.bookings.cancel(bookingId),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.setQueryData(["booking", result.id], result);
+    },
+  });
+}

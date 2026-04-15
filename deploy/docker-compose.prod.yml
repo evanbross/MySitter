@@ -1,0 +1,52 @@
+version: "3.9"
+
+# Production compose override.
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+# Requires apps/api/.env.prod to exist with all required environment variables.
+
+services:
+  api1:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile.prod
+    env_file: ../apps/api/.env.prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  api2:
+    extends:
+      service: api1
+
+  celery_worker:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile.prod
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4
+    env_file: ../apps/api/.env.prod
+    restart: unless-stopped
+
+  celery_beat:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile.prod
+    # Beat must run as exactly one process — not horizontally scalable.
+    command: celery -A app.workers.celery_app beat --loglevel=info
+    env_file: ../apps/api/.env.prod
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api1
+      - api2
+    restart: unless-stopped

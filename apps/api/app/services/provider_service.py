@@ -2,6 +2,7 @@
 ProviderService: profile CRUD and geographic search via PostGIS.
 """
 import uuid
+import json
 
 from fastapi import HTTPException, status
 from geoalchemy2.functions import ST_DWithin, ST_MakePoint
@@ -28,6 +29,27 @@ class ProviderService:
         self._db = db
 
     async def search(
+        self,
+        lat: float,
+        lng: float,
+        radius_miles: int,
+        service_type: str | None,
+        page: int,
+        redis=None,
+    ) -> PaginatedProviderSearch:
+        cache_key = f"search:{lat:.3f}:{lng:.3f}:{radius_miles}:{service_type or 'all'}:{page}"
+        if redis:
+            cached = await redis.get(cache_key)
+            if cached:
+                return PaginatedProviderSearch.model_validate_json(cached)
+
+        result = await self._query_search(lat, lng, radius_miles, service_type, page)
+
+        if redis:
+            await redis.setex(cache_key, 30, result.model_dump_json())
+        return result
+
+    async def _query_search(
         self,
         lat: float,
         lng: float,
@@ -84,26 +106,60 @@ class ProviderService:
             has_next=len(items) == 20,
         )
 
-    async def get_by_id(self, provider_id: uuid.UUID) -> ProviderProfile:
-        profile = await self._db.scalar(
-            select(ProviderProfile).where(ProviderProfile.id == provider_id)
+    @staticmethod
+    def _profile_with_user(
+        profile: ProviderProfile, display_name: str, avatar_url: str | None
+    ) -> ProviderProfileResponse:
+        return ProviderProfileResponse.model_validate(profile).model_copy(
+            update={"display_name": display_name, "avatar_url": avatar_url}
         )
-        if not profile:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
-        return profile
 
-    async def get_by_user_id(self, user_id: uuid.UUID) -> ProviderProfile:
-        profile = await self._db.scalar(
-            select(ProviderProfile).where(ProviderProfile.user_id == user_id)
-        )
-        if not profile:
+    async def get_by_id(self, provider_id: uuid.UUID) -> ProviderProfileResponse:
+        row = (await self._db.execute(
+            select(ProviderProfile, User.display_name, User.avatar_url)
+            .join(User, User.id == ProviderProfile.user_id)
+            .where(ProviderProfile.id == provider_id)
+        )).first()
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
+        profile, display_name, avatar_url = row
+        return self._profile_with_user(profile, display_name, avatar_url)
+
+    async def get_by_user_id(self, user_id: uuid.UUID) -> ProviderProfileResponse:
+        row = (await self._db.execute(
+            select(ProviderProfile, User.display_name, User.avatar_url)
+            .join(User, User.id == ProviderProfile.user_id)
+            .where(ProviderProfile.user_id == user_id)
+        )).first()
+        if not row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider profile not found")
-        return profile
+        profile, display_name, avatar_url = row
+        return self._profile_with_user(profile, display_name, avatar_url)
+
+    async def get_by_slug(self, slug: str) -> ProviderProfileResponse:
+        row = (await self._db.execute(
+            select(ProviderProfile, User.display_name, User.avatar_url)
+            .join(User, User.id == ProviderProfile.user_id)
+            .where(ProviderProfile.slug == slug)
+            .where(ProviderProfile.is_active.is_(True))
+        )).first()
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
+        profile, display_name, avatar_url = row
+        return self._profile_with_user(profile, display_name, avatar_url)
 
     async def update_profile(
         self, user_id: uuid.UUID, body: ProviderProfileUpdateRequest
-    ) -> ProviderProfile:
-        profile = await self.get_by_user_id(user_id)
+    ) -> ProviderProfileResponse:
+        # get_by_user_id now returns a Pydantic model, so we need the ORM object directly here.
+        row = (await self._db.execute(
+            select(ProviderProfile, User.display_name, User.avatar_url)
+            .join(User, User.id == ProviderProfile.user_id)
+            .where(ProviderProfile.user_id == user_id)
+        )).first()
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider profile not found")
+        profile, display_name, avatar_url = row
 
         if body.bio is not None:
             profile.bio = body.bio
@@ -119,7 +175,7 @@ class ProviderService:
 
         await self._db.commit()
         await self._db.refresh(profile)
-        return profile
+        return self._profile_with_user(profile, display_name, avatar_url)
 
     async def get_availability(self, provider_id: uuid.UUID) -> list[Availability]:
         result = await self._db.execute(
@@ -178,3 +234,19 @@ class ProviderService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         await self._db.delete(block)
         await self._db.commit()
+
+    async def add_photo(self, user_id: uuid.UUID, url: str) -> ProviderProfileResponse:
+        """Append a confirmed public URL to the provider's photos list."""
+        row = (await self._db.execute(
+            select(ProviderProfile, User.display_name, User.avatar_url)
+            .join(User, User.id == ProviderProfile.user_id)
+            .where(ProviderProfile.user_id == user_id)
+        )).first()
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider profile not found")
+        profile, display_name, avatar_url = row
+        # ARRAY append requires reassigning the whole list so SQLAlchemy detects the change.
+        profile.photos = list(profile.photos) + [url]
+        await self._db.commit()
+        await self._db.refresh(profile)
+        return self._profile_with_user(profile, display_name, avatar_url)

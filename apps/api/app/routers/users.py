@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db
@@ -28,3 +29,18 @@ async def update_me(
     await db.commit()
     await db.refresh(current_user)
     return current_user
+
+
+class _PushTokenRequest(BaseModel):
+    token: str
+
+
+@router.post("/me/push-token", status_code=204)
+async def register_push_token(
+    body: _PushTokenRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Store the device's Expo push token for offline notifications."""
+    current_user.expo_push_token = body.token
+    await db.commit()

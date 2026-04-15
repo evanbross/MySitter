@@ -6,8 +6,9 @@ import uuid
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis
 
-from app.core.deps import get_current_user, get_db, require_role
+from app.core.deps import get_current_user, get_db, get_read_db, require_role, get_redis
 from app.models.user import User, UserRole
 from app.schemas.provider import (
     AvailabilityCreateRequest,
@@ -17,6 +18,7 @@ from app.schemas.provider import (
     ProviderProfileResponse,
     ProviderProfileUpdateRequest,
 )
+from app.schemas.uploads import PhotoAddRequest
 
 router = APIRouter(prefix="/providers", tags=["providers"])
 
@@ -28,10 +30,11 @@ async def search_providers(
     radius_miles: int = Query(10, ge=1, le=100),
     service_type: str | None = Query(None),
     page: int = Query(1, ge=1),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_read_db),
+    redis: Redis = Depends(get_redis),
 ) -> PaginatedProviderSearch:
     from app.services.provider_service import ProviderService
-    return await ProviderService(db).search(lat, lng, radius_miles, service_type, page)
+    return await ProviderService(db).search(lat, lng, radius_miles, service_type, page, redis=redis)
 
 
 @router.get("/me", response_model=ProviderProfileResponse)
@@ -100,3 +103,14 @@ async def delete_availability(
 ) -> None:
     from app.services.provider_service import ProviderService
     await ProviderService(db).delete_availability(current_user.id, availability_id)
+
+
+@router.post("/me/photos", response_model=ProviderProfileResponse, status_code=201)
+async def add_provider_photo(
+    body: PhotoAddRequest,
+    current_user: User = Depends(require_role(UserRole.PROVIDER)),
+    db: AsyncSession = Depends(get_db),
+) -> ProviderProfileResponse:
+    """Attach a confirmed public photo URL to the provider's profile."""
+    from app.services.provider_service import ProviderService
+    return await ProviderService(db).add_photo(current_user.id, body.url)

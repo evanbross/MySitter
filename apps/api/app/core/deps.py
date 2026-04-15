@@ -7,7 +7,7 @@ from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncReadSessionLocal, AsyncSessionLocal
 from app.core.redis import get_redis  # noqa: F401 — re-exported for convenience
 from app.core.security import decode_token
 from app.models.user import User, UserRole
@@ -17,6 +17,12 @@ _bearer = HTTPBearer(auto_error=True)
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
+        yield session
+
+
+async def get_read_db() -> AsyncGenerator[AsyncSession, None]:
+    """Yields a session on the read replica (falls back to primary if replica not configured)."""
+    async with AsyncReadSessionLocal() as session:
         yield session
 
 

@@ -17,6 +17,23 @@ AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
     class_=AsyncSession,
 )
 
+# Read replica: falls back to the write engine when READ_REPLICA_URL is not configured,
+# making single-region deployments work without any code changes.
+_read_url = settings.read_replica_url or settings.database_url
+_read_engine = create_async_engine(
+    _read_url,
+    echo=settings.debug,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+)
+
+AsyncReadSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
+    _read_engine,
+    expire_on_commit=False,
+    class_=AsyncSession,
+)
+
 
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy ORM models."""
@@ -24,4 +41,4 @@ class Base(DeclarativeBase):
 
 
 # Re-export for convenience so models only need to import from here.
-__all__ = ["Base", "engine", "AsyncSessionLocal", "MappedColumn"]
+__all__ = ["Base", "engine", "AsyncSessionLocal", "AsyncReadSessionLocal", "MappedColumn"]

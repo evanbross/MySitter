@@ -20,9 +20,12 @@ import type {
   SubscribeResponse,
   Subscription,
   TokenPair,
+  UploadUrlRequest,
+  UploadUrlResponse,
   User,
   UserCreate,
   UserUpdate,
+  ProviderAnalytics,
 } from "@mysitter/types";
 
 export interface ApiClientConfig {
@@ -145,6 +148,8 @@ export class ApiClient {
   users = {
     me: () => this.request<User>("GET", "/users/me"),
     update: (data: UserUpdate) => this.request<User>("PATCH", "/users/me", data),
+    registerPushToken: (token: string) =>
+      this.request<void>("POST", "/users/me/push-token", { token }),
   };
 
   // ─── Providers ────────────────────────────────────────────────────────────
@@ -200,6 +205,9 @@ export class ApiClient {
 
     deleteAvailability: (availabilityId: string) =>
       this.request<void>("DELETE", `/providers/me/availability/${availabilityId}`),
+
+    addPhoto: (url: string) =>
+      this.request<ProviderProfile>("POST", "/providers/me/photos", { url }),
   };
 
   // ─── Bookings ─────────────────────────────────────────────────────────────
@@ -228,9 +236,41 @@ export class ApiClient {
 
     cancel: (bookingId: string) =>
       this.request<Booking>("POST", `/bookings/${bookingId}/cancel`),
+  };
 
-    review: (bookingId: string, data: ReviewCreate) =>
-      this.request<Review>("POST", `/bookings/${bookingId}/review`, data),
+  // ─── Reviews ──────────────────────────────────────────────────────────────
+
+  reviews = {
+    create: (bookingId: string, data: ReviewCreate) =>
+      this.request<Review>("POST", `/reviews/bookings/${bookingId}`, data),
+
+    listForProvider: (providerId: string, page = 1, pageSize = 20) =>
+      this.request<PaginatedResponse<Review>>(
+        "GET",
+        `/reviews/providers/${providerId}/reviews?page=${page}&page_size=${pageSize}`,
+        undefined,
+        true
+      ),
+  };
+
+  // ─── Uploads ──────────────────────────────────────────────────────────────
+
+  uploads = {
+    presign: (data: UploadUrlRequest) =>
+      this.request<UploadUrlResponse>("POST", "/uploads/presign", data),
+  };
+
+  // ─── Analytics ──────────────────────────────────────────────────────────────
+  analytics = {
+    getMyAnalytics: () =>
+      this.request<ProviderAnalytics>("GET", "/analytics/me")
+  };
+
+  // ─── SEO ──────────────────────────────────────────────────────────────────
+
+  seo = {
+    getProviderBySlug: (slug: string) =>
+      this.request<ProviderProfile>("GET", `/seo/providers/${slug}`, undefined, true),
   };
 
   // ─── Billing ──────────────────────────────────────────────────────────────

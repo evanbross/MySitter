@@ -10,6 +10,7 @@ import MessagesPage from "@/pages/MessagesPage";
 import CalendarPage from "@/pages/CalendarPage";
 import DashboardPage from "@/pages/DashboardPage";
 import NotFoundPage from "@/pages/NotFoundPage";
+import { AnalyticsPage } from "@/pages/AnalyticsPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -26,6 +27,7 @@ export default function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/search" element={<SearchPage />} />
       <Route path="/providers/:providerId" element={<ProviderProfilePage />} />
+      <Route path="/sitters/:slug" element={<ProviderProfilePage />} />
 
       {/* Auth-gated */}
       <Route
@@ -57,6 +59,14 @@ export default function App() {
         element={
           <RequireAuth>
             <CalendarPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/analytics"
+        element={
+          <RequireAuth>
+            <AnalyticsPage />
           </RequireAuth>
         }
       />

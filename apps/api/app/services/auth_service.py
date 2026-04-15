@@ -27,6 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.workers.tasks import send_welcome_email
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -108,6 +109,7 @@ class AuthService:
             self._db.add(profile)
             await self._db.commit()
 
+        send_welcome_email.delay(str(user.id))
         return TokenResponse(access_token=create_access_token(user.id))
 
     # ─── Password Login ───────────────────────────────────────────────────────

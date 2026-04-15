@@ -54,7 +54,7 @@ class Booking(Base):
     occurrences: Mapped[list["BookingOccurrence"]] = relationship(
         back_populates="booking", cascade="all, delete-orphan"
     )
-    review: Mapped["Review | None"] = relationship(back_populates="booking", uselist=False)
+    reviews: Mapped[list["Review"]] = relationship("Review", back_populates="booking")
 
 
 class BookingOccurrence(Base):
@@ -76,24 +76,3 @@ class BookingOccurrence(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     booking: Mapped["Booking"] = relationship(back_populates="occurrences")
-
-
-class Review(Base):
-    __tablename__ = "reviews"
-    __table_args__ = (UniqueConstraint("booking_id", name="uq_review_booking"),)
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    booking_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("bookings.id", ondelete="CASCADE"), unique=True, nullable=False
-    )
-    reviewer_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    reviewee_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1–5
-    body: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    booking: Mapped["Booking"] = relationship(back_populates="review")

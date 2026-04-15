@@ -48,6 +48,18 @@ Run everything locally: `docker-compose up` (postgres + redis), then `npm run de
 - **Never use bare `pass` for stub implementations** — always use `raise NotImplementedError("not yet implemented")`. A stub that raises fails loudly; a `pass` silently does nothing and can go undetected for a long time.
 - **Registration and creation flows must account for all downstream resource creation** — if the architecture requires related rows in other tables when a new entity is created (e.g. a `ProviderProfile` when a PROVIDER `User` registers), create them in the same transaction or raise `NotImplementedError` with a clear comment if intentionally deferred. Never silently omit them.
 
+## Database Abstraction
+
+When creating data access layers, always introduce an abstraction layer between business logic and the database driver/ORM. The goal is to make swapping providers (SQLite → local Postgres → managed cloud Postgres, or back) a change confined to the infrastructure layer, not scattered through application code.
+
+Concrete requirements:
+- **Repository pattern**: data access lives in repository classes (e.g. `UserRepository`, `BookingRepository`) with well-defined method signatures. Routers and services call repository methods — never raw queries directly.
+- **Dependency-injected sessions/connections**: pass the DB session or connection into repositories via constructor or function parameter rather than importing a global. This makes it easy to swap the underlying connection at the call site (e.g. for tests or provider migration).
+- **No provider-specific leakage into business logic**: things like `psycopg2` connection strings, SQLite pragmas, or cloud-provider SDK calls belong in the infrastructure/config layer, not in services or routers.
+- **Abstract base or protocol**: define an abstract base class or `Protocol` for each repository so that a mock, in-memory, or alternative-provider implementation can be substituted without changing callers.
+
+This applies to every persistence store, not just the primary DB — caches (Redis), object storage, and search indexes included.
+
 ## Context Window Management
 
 Proactively suggest a `/clear` or `/compact` when the conversation is getting long — specifically:

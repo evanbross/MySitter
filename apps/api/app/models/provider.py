@@ -38,6 +38,8 @@ class ProviderProfile(Base):
         Enum(SubscriptionTier), nullable=True
     )
     subscription_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    slug: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True, index=True)
+    photos: Mapped[list[str]] = mapped_column(ARRAY(String(500)), nullable=False, default=list)
     rating: Mapped[float | None] = mapped_column(Numeric(3, 2), nullable=True)
     review_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

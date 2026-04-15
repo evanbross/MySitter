@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome to mysitter{% endblock %}
+
+{% block content %}
+<p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1a1a2e;">
+  Welcome, {{ user_name }}!
+</p>
+
+<p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:#374151;">
+  Your mysitter account is ready. Whether you're looking for a trusted pet sitter or
+  offering your own services, we're glad you're here.
+</p>
+
+<p style="margin:0 0 28px;font-size:16px;line-height:1.6;color:#374151;">
+  Get started by completing your profile and exploring sitters near you.
+</p>
+
+<p style="margin:0 0 28px;">
+  <a href="{{ app_url }}"
+     style="display:inline-block;background-color:#1a1a2e;color:#ffffff;padding:12px 24px;
+            border-radius:6px;text-decoration:none;font-size:14px;font-weight:600;">
+    Go to mysitter
+  </a>
+</p>
+
+<p style="margin:0;font-size:13px;color:#9ca3af;">
+  If you didn't create this account, you can safely ignore this email.
+</p>
+{% endblock %}

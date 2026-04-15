@@ -1,66 +1,21 @@
-import {
-  Admin,
-  Resource,
-  List,
-  Datagrid,
-  TextField,
-  EmailField,
-  BooleanField,
-  DateField,
-  Edit,
-  SimpleForm,
-  TextInput,
-  BooleanInput,
-  Show,
-  SimpleShowLayout,
-} from "react-admin";
-import simpleRestProvider from "ra-data-simple-rest";
-
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
-
-const dataProvider = simpleRestProvider(`${BASE_URL}/admin`);
-
-// ─── Users ────────────────────────────────────────────────────────────────────
-
-function UserList() {
-  return (
-    <List>
-      <Datagrid rowClick="edit">
-        <TextField source="id" />
-        <EmailField source="email" />
-        <TextField source="display_name" label="Name" />
-        <TextField source="role" />
-        <BooleanField source="is_active" label="Active" />
-        <DateField source="created_at" label="Joined" />
-      </Datagrid>
-    </List>
-  );
-}
-
-function UserEdit() {
-  return (
-    <Edit>
-      <SimpleForm>
-        <TextInput source="display_name" label="Name" />
-        <TextInput source="phone" />
-        <BooleanInput source="is_active" label="Active" />
-      </SimpleForm>
-    </Edit>
-  );
-}
-
-// ─── App ──────────────────────────────────────────────────────────────────────
+import { Admin, Resource } from "react-admin";
+import { dataProvider } from "./dataProvider";
+import { UserList, UserEdit } from "./resources/users";
+import { ProviderList, ProviderEdit } from "./resources/providers";
+import { BookingList, BookingEdit } from "./resources/bookings";
+import { ConversationList, ConversationShow } from "./resources/conversations";
+import { SubscriptionList } from "./resources/subscriptions";
+import { ReviewList } from "./resources/reviews";
 
 export default function App() {
   return (
-    <Admin dataProvider={dataProvider} title="mysitter Admin">
-      <Resource
-        name="users"
-        list={UserList}
-        edit={UserEdit}
-        recordRepresentation={(r) => r.email}
-      />
-      {/* More resources (bookings, providers, subscriptions) added in Phase 3 */}
+    <Admin dataProvider={dataProvider} basename="/admin">
+      <Resource name="users" list={UserList} edit={UserEdit} />
+      <Resource name="providers" list={ProviderList} edit={ProviderEdit} />
+      <Resource name="bookings" list={BookingList} edit={BookingEdit} />
+      <Resource name="conversations" list={ConversationList} show={ConversationShow} />
+      <Resource name="subscriptions" list={SubscriptionList} />
+      <Resource name="reviews" list={ReviewList} />
     </Admin>
   );
 }

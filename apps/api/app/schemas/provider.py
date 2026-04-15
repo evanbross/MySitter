@@ -12,8 +12,13 @@ class GeoPointSchema(BaseModel):
 class ProviderProfileResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
+    slug: str | None = None
+    # Populated by joining the users table — not a direct column on provider_profiles
+    display_name: str | None = None
+    avatar_url: str | None = None
     bio: str | None
     services: list[str]
+    photos: list[str] = []
     hourly_rate: float | None
     service_radius_miles: int
     is_active: bool
@@ -28,7 +33,7 @@ class ProviderProfileResponse(BaseModel):
 
 class ProviderSearchResult(ProviderProfileResponse):
     distance_miles: float
-    display_name: str
+    display_name: str  # non-nullable: search always joins users
     avatar_url: str | None
 
 

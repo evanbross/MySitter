@@ -77,10 +77,12 @@ export interface GeoPoint {
 export interface ProviderProfile {
   id: string;
   user_id: string;
+  slug: string | null;
   display_name: string;
   avatar_url: string | null;
   bio: string | null;
   services: ServiceType[];
+  photos: string[];
   hourly_rate: number | null;
   service_radius_miles: number;
   location: GeoPoint | null;
@@ -227,6 +229,36 @@ export interface SubscribeRequest {
 
 export interface SubscribeResponse {
   client_secret: string;
+}
+
+// ─── Uploads ─────────────────────────────────────────────────────────────────
+
+export interface UploadUrlRequest {
+  filename: string;
+  content_type: string;
+}
+
+export interface UploadUrlResponse {
+  upload_url: string;  // Presigned PUT URL — client uploads directly here
+  public_url: string;  // Permanent public URL to save after upload succeeds
+  key: string;
+}
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+export interface WeeklyBookingCount {
+  week_start: string;
+  count: number;
+  completed: number;
+}
+
+export interface ProviderAnalytics {
+  total_bookings: number;
+  completed_bookings: number;
+  completion_rate: number;
+  unique_customers: number;
+  avg_rating: number;
+  review_count: number;
+  weekly_trend: WeeklyBookingCount[];
 }
 
 // ─── Pagination ───────────────────────────────────────────────────────────────

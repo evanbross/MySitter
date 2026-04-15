@@ -1,11 +1,26 @@
 """
 Celery tasks for background processing.
 Each task is designed to be idempotent where possible.
+
+All tasks use synchronous SQLAlchemy sessions because Celery workers run
+in a plain thread, not an asyncio event loop.
 """
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import requests
+from dateutil.rrule import rrulestr
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session as SyncSession
+
+from app.core.config import settings
+from app.core.email import email_renderer
+from app.models.booking import Booking, BookingOccurrence, BookingStatus
+from app.models.messaging import Conversation, Message
+from app.models.user import User
 from app.workers.celery_app import celery_app
+
+# ─── Booking tasks ────────────────────────────────────────────────────────────
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
@@ -32,12 +47,73 @@ def send_booking_reminder(self, booking_id: str) -> None:
 @celery_app.task
 def expand_recurring_bookings() -> None:
     """
-    For every active recurring booking, generate BookingOccurrence rows
-    up to 8 weeks ahead. Safe to run multiple times (checks for existing rows).
+    For every CONFIRMED recurring booking, generate BookingOccurrence rows
+    for the next 8 weeks. Safe to run multiple times — skips existing occurrences.
     """
-    # TODO: implement with synchronous SQLAlchemy session
-    # (Celery tasks are sync; use create_engine + sessionmaker, not async)
-    pass
+    horizon = datetime.now(timezone.utc) + timedelta(weeks=8)
+    engine = create_engine(settings.database_sync_url)
+
+    with SyncSession(engine) as session:
+        recurring = session.scalars(
+            select(Booking).where(
+                Booking.rrule_string.isnot(None),
+                Booking.status == BookingStatus.CONFIRMED,
+            )
+        ).all()
+
+        for booking in recurring:
+            rule = rrulestr(booking.rrule_string, dtstart=booking.start_at)
+            duration = booking.end_at - booking.start_at
+
+            existing: set[datetime] = {
+                occ.scheduled_at
+                for occ in session.scalars(
+                    select(BookingOccurrence).where(
+                        BookingOccurrence.booking_id == booking.id
+                    )
+                )
+            }
+
+            for dt in rule.between(datetime.now(timezone.utc), horizon, inc=True):
+                if dt not in existing:
+                    session.add(
+                        BookingOccurrence(
+                            booking_id=booking.id,
+                            scheduled_at=dt,
+                            status=BookingStatus.CONFIRMED,
+                        )
+                    )
+
+        session.commit()
+
+    engine.dispose()
+
+
+# ─── Message tasks ────────────────────────────────────────────────────────────
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def send_welcome_email(self, user_id: str) -> None:
+    """Send a welcome email to a newly registered user."""
+    try:
+        _send_welcome(user_id)
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def notify_new_message(self, message_id: str) -> None:
+    """
+    Send a push notification for a new message.
+    Called only when the recipient has no active WebSocket connection.
+    """
+    try:
+        _notify_new_message(message_id)
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
+# ─── Implementation helpers ───────────────────────────────────────────────────
 
 
 def _notify_booking(booking_id: str, event: str) -> None:
@@ -45,14 +121,225 @@ def _notify_booking(booking_id: str, event: str) -> None:
     Load the booking and dispatch notifications via Resend (email),
     Twilio (SMS), and Expo Push.
 
-    This function runs inside a Celery worker process. It uses a synchronous
-    database session (not asyncpg) since Celery tasks are not async.
+    This runs inside a Celery worker process using a synchronous DB session.
     """
-    # TODO: implement once Resend / Twilio / Expo Push credentials are configured
-    # Pattern:
-    #   1. Open sync SQLAlchemy session
-    #   2. Load Booking + customer + provider User rows
-    #   3. Send email via resend.Emails.send(...)
-    #   4. Send SMS via twilio_client.messages.create(...)
-    #   5. Send push via httpx to Expo Push API
-    pass
+    engine = create_engine(settings.database_sync_url)
+
+    with SyncSession(engine) as session:
+        booking = session.scalar(
+            select(Booking).where(Booking.id == uuid.UUID(booking_id))
+        )
+        if not booking:
+            return
+
+        customer = session.scalar(select(User).where(User.id == booking.customer_id))
+        # booking.provider_id references provider_profiles.id, not users.id directly.
+        # Load the provider's user via ProviderProfile.
+        from app.models.provider import ProviderProfile
+
+        profile = session.scalar(
+            select(ProviderProfile).where(ProviderProfile.id == booking.provider_id)
+        )
+        provider = session.scalar(
+            select(User).where(User.id == profile.user_id)
+        ) if profile else None
+
+        if not customer or not provider:
+            return
+
+        subject, customer_body, provider_body = _booking_notification_copy(
+            event, customer, provider, booking
+        )
+
+        # Email — send to relevant party based on event
+        if settings.resend_api_key:
+            import resend
+
+            booking_start = booking.start_at.strftime("%A, %B %d at %I:%M %p").replace(
+                " 0", " "
+            )
+            resend.api_key = settings.resend_api_key
+            if event in ("PENDING",):
+                # Provider receives new request
+                resend.Emails.send({
+                    "from": settings.email_from,
+                    "to": [provider.email],
+                    "subject": subject,
+                    "html": email_renderer.render(
+                        "booking_notification.html",
+                        user_name=provider.display_name,
+                        message=provider_body,
+                        event=event,
+                        booking_start=booking_start,
+                        service_type=booking.service_type.value,
+                    ),
+                })
+            else:
+                # Customer receives status update
+                resend.Emails.send({
+                    "from": settings.email_from,
+                    "to": [customer.email],
+                    "subject": subject,
+                    "html": email_renderer.render(
+                        "booking_notification.html",
+                        user_name=customer.display_name,
+                        message=customer_body,
+                        event=event,
+                        booking_start=booking_start,
+                        service_type=booking.service_type.value,
+                    ),
+                })
+
+        # SMS — send to relevant party if they have a phone number
+        if settings.twilio_account_sid and settings.twilio_auth_token:
+            from twilio.rest import Client as TwilioClient
+
+            twilio = TwilioClient(settings.twilio_account_sid, settings.twilio_auth_token)
+            recipient = provider if event == "PENDING" else customer
+            sms_body = provider_body if event == "PENDING" else customer_body
+
+            if recipient.phone:
+                twilio.messages.create(
+                    body=sms_body,
+                    from_=settings.twilio_from_number,
+                    to=recipient.phone,
+                )
+
+        # Push — Expo push notification
+        recipient = provider if event == "PENDING" else customer
+        push_body = provider_body if event == "PENDING" else customer_body
+        if recipient.expo_push_token:
+            _send_expo_push(
+                token=recipient.expo_push_token,
+                title=subject,
+                body=push_body,
+                data={"bookingId": str(booking.id)},
+            )
+
+    engine.dispose()
+
+
+def _notify_new_message(message_id: str) -> None:
+    """Load the message and send a push notification to the recipient."""
+    engine = create_engine(settings.database_sync_url)
+
+    with SyncSession(engine) as session:
+        msg = session.scalar(
+            select(Message).where(Message.id == uuid.UUID(message_id))
+        )
+        if not msg:
+            return
+
+        conv = session.scalar(
+            select(Conversation).where(Conversation.id == msg.conversation_id)
+        )
+        if not conv:
+            return
+
+        recipient_id = (
+            conv.provider_id if msg.sender_id == conv.customer_id else conv.customer_id
+        )
+        recipient = session.scalar(select(User).where(User.id == recipient_id))
+        sender = session.scalar(select(User).where(User.id == msg.sender_id))
+
+        if not recipient or not recipient.expo_push_token or not sender:
+            return
+
+        _send_expo_push(
+            token=recipient.expo_push_token,
+            title=f"New message from {sender.display_name}",
+            body=msg.body[:150],
+            data={"conversationId": str(conv.id)},
+        )
+
+    engine.dispose()
+
+
+def _send_expo_push(
+    token: str, title: str, body: str, data: dict | None = None
+) -> None:
+    """POST a single push message to the Expo Push API."""
+    payload = {
+        "to": token,
+        "title": title,
+        "body": body,
+        "sound": "default",
+    }
+    if data:
+        payload["data"] = data
+
+    resp = requests.post(
+        "https://exp.host/--/api/v2/push/send",
+        json=payload,
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+        timeout=10,
+    )
+    resp.raise_for_status()
+
+
+def _booking_notification_copy(
+    event: str,
+    customer: "User",
+    provider: "User",
+    booking: "Booking",
+) -> tuple[str, str, str]:
+    """
+    Return (subject, customer_message, provider_message) for a booking event.
+    """
+    start = booking.start_at.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
+
+    if event == "PENDING":
+        return (
+            f"New booking request from {customer.display_name}",
+            f"Your booking request for {start} has been sent.",
+            f"{customer.display_name} has requested a booking on {start}.",
+        )
+    if event == "CONFIRMED":
+        return (
+            "Your booking has been confirmed",
+            f"Your booking on {start} with {provider.display_name} is confirmed!",
+            f"You confirmed a booking with {customer.display_name} on {start}.",
+        )
+    if event == "CANCELLED":
+        return (
+            "Booking cancelled",
+            f"Your booking on {start} has been cancelled.",
+            f"The booking with {customer.display_name} on {start} was cancelled.",
+        )
+    if event == "COMPLETED":
+        return (
+            "Booking completed",
+            f"Your session on {start} is complete. Please leave a review!",
+            f"Your session with {customer.display_name} on {start} is complete.",
+        )
+    if event == "REMINDER":
+        return (
+            f"Reminder: booking tomorrow",
+            f"Reminder: you have a session with {provider.display_name} on {start}.",
+            f"Reminder: session with {customer.display_name} on {start}.",
+        )
+    return ("Booking update", "Your booking has been updated.", "A booking has been updated.")
+
+
+def _send_welcome(user_id: str) -> None:
+    """Load the user and send a welcome email via Resend."""
+    if not settings.resend_api_key:
+        return
+
+    engine = create_engine(settings.database_sync_url)
+    with SyncSession(engine) as session:
+        user = session.scalar(select(User).where(User.id == uuid.UUID(user_id)))
+        if not user:
+            return
+
+        import resend
+
+        resend.api_key = settings.resend_api_key
+        resend.Emails.send({
+            "from": settings.email_from,
+            "to": [user.email],
+            "subject": f"Welcome to mysitter, {user.display_name}!",
+            "html": email_renderer.render("welcome.html", user_name=user.display_name),
+        })
+
+    engine.dispose()
