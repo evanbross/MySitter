@@ -48,6 +48,21 @@ services:
     volumes:
       - ./apps/api:/app
 
+  # ─── Celery beat (scheduled tasks — one process only) ────────────────────
+  celery_beat:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    command: celery -A app.workers.celery_app beat --loglevel=debug
+    environment:
+      - DATABASE_SYNC_URL=postgresql://mysitter_user:mysitter@postgres:5432/mysitter_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./apps/api:/app
+
   # ─── MailHog (local email capture — no real emails sent in dev) ────────────
   mailhog:
     image: mailhog/mailhog:latest

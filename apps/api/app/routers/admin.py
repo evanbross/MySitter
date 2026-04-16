@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, Query, Response, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, cast, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_db, require_role
@@ -21,6 +21,108 @@ from app.schemas.billing import SubscriptionResponse
 router = APIRouter(prefix="/admin", tags=["admin"])
 _admin_only = require_role(UserRole.ADMIN)
 
+
+class _BaseModel(BaseModel):
+    pass
+
+class AdminStats(_BaseModel):
+    total_users: int
+    active_providers: int
+    total_bookings: int
+    confirmed_bookings: int
+    completed_bookings: int
+    total_subscriptions: int
+    active_subscriptions: int
+    estimated_revenue_usd: float
+
+
+@router.get("/stats", response_model=AdminStats)
+async def get_stats(
+    _: User = Depends(_admin_only),
+    db: AsyncSession = Depends(get_db),
+) -> AdminStats:
+    total_users = await db.scalar(select(func.count()).select_from(User)) or 0
+    active_providers = await db.scalar(
+        select(func.count()).select_from(ProviderProfile).where(ProviderProfile.is_active.is_(True))
+    ) or 0
+    total_bookings = await db.scalar(select(func.count()).select_from(Booking)) or 0
+    confirmed_bookings = await db.scalar(
+        select(func.count()).select_from(Booking).where(Booking.status == BookingStatus.CONFIRMED)
+    ) or 0
+    completed_bookings = await db.scalar(
+        select(func.count()).select_from(Booking).where(Booking.status == BookingStatus.COMPLETED)
+    ) or 0
+    total_subscriptions = await db.scalar(select(func.count()).select_from(Subscription)) or 0
+    active_subscriptions = await db.scalar(
+        select(func.count()).select_from(Subscription).where(Subscription.status == "active")
+    ) or 0
+
+    revenue_row = await db.execute(
+        select(
+            func.coalesce(
+                func.sum(
+                    cast(ProviderProfile.hourly_rate, Float)
+                    * func.extract("epoch", Booking.end_at - Booking.start_at)
+                    / 3600
+                ),
+                0.0,
+            )
+        )
+        .select_from(Booking)
+        .join(ProviderProfile, ProviderProfile.id == Booking.provider_id)
+        .where(
+            Booking.status == BookingStatus.COMPLETED,
+            ProviderProfile.hourly_rate.isnot(None),
+        )
+    )
+    estimated_revenue = float(revenue_row.scalar_one())
+
+    return AdminStats(
+        total_users=total_users,
+        active_providers=active_providers,
+        total_bookings=total_bookings,
+        confirmed_bookings=confirmed_bookings,
+        completed_bookings=completed_bookings,
+        total_subscriptions=total_subscriptions,
+        active_subscriptions=active_subscriptions,
+        estimated_revenue_usd=round(estimated_revenue, 2),
+    )
+
+class _ManualNotificationRequest(_BaseModel):
+    user_ids: list[uuid.UUID]
+    subject: str
+    message: str
+    channels: list[str] = ["email", "push"]
+
+
+class _ManualNotificationResponse(_BaseModel):
+    queued: int
+
+
+@router.post("/notifications/send", response_model=_ManualNotificationResponse)
+async def send_manual_notification(
+    body: _ManualNotificationRequest,
+    _: User = Depends(_admin_only),
+    db: AsyncSession = Depends(get_db),
+) -> _ManualNotificationResponse:
+    if body.user_ids:
+        target_ids = [str(uid) for uid in body.user_ids]
+    else:
+        rows = await db.execute(
+            select(User.id).where(User.is_active.is_(True))
+        )
+        target_ids = [str(r) for r in rows.scalars()]
+
+    from app.workers.tasks import send_admin_notification
+    for user_id in target_ids:
+        send_admin_notification.delay(
+            user_id=user_id,
+            subject=body.subject,
+            message=body.message,
+            channels=body.channels,
+        )
+
+    return _ManualNotificationResponse(queued=len(target_ids))
 
 # ── Users ─────────────────────────────────────────────────────────────────────
 

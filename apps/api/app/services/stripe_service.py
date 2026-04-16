@@ -151,6 +151,18 @@ class StripeService:
 
         await self._db.commit()
 
+        if profile:
+            user = await self._db.scalar(
+                select(User).where(User.id == profile.user_id)
+            )
+            if user:
+                from app.workers.tasks import send_subscription_renewal_email
+                send_subscription_renewal_email.delay(
+                    str(user.id),
+                    tier=sub.tier.value,
+                    period_end_iso=period_end.isoformat(),
+                )
+
     async def _on_payment_failed(self, invoice: dict) -> None:
         """
         Stripe fires this when a subscription payment fails.

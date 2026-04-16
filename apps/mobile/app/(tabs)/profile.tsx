@@ -1,10 +1,11 @@
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, Share } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProviderProfile, UserUpdate } from "@mysitter/types";
 import { useAuth } from "../../hooks/useAuth";
 import { apiClient } from "../../lib/apiClient";
+import { useProviderAnalytics } from "../../hooks/useAnalytics"; // Added
 
 const TIER_LABELS: Record<string, string> = {
   BASIC: "Basic",
@@ -26,7 +27,6 @@ export default function ProfileTab() {
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState("");
 
-  // Providers see their subscription tier.
   const { data: providerProfile } = useQuery<ProviderProfile>({
     queryKey: ["providers", "me"],
     queryFn: () => apiClient.providers.getMyProfile(),
@@ -34,8 +34,24 @@ export default function ProfileTab() {
     retry: false,
   });
 
+  const { data: referralData } = useQuery({
+    queryKey: ["referrals", "me"],
+    queryFn: () => apiClient.referrals.listMine(),
+    enabled: !!user,
+  });
+
+  // Only fire the analytics query for providers — customers always get 402.
+  const { data: analytics, error: analyticsError } = useProviderAnalytics(
+    user?.role === "PROVIDER",
+  );
+
+  const generateCode = useMutation({
+    mutationFn: () => apiClient.referrals.generate(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["referrals", "me"] }),
+  });
+
   const updateUser = useMutation<unknown, Error, UserUpdate>({
-    mutationFn: (data) => apiClient.users.update(data),
+    mutationFn: (data) => apiClient.users.updateMe(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["auth", "me"] });
       setEditingName(false);
@@ -157,6 +173,98 @@ export default function ProfileTab() {
         </View>
       </View>
 
+      {/* Analytics Section */}
+      {user?.role === "PROVIDER" && (
+        <View style={styles.section}>
+          <Text style={{ fontSize: 17, fontWeight: "700", color: "#111", marginBottom: 12, paddingVertical: 14, paddingHorizontal: 20 }}>
+            Analytics
+          </Text>
+
+          {analyticsError && (analyticsError as { status?: number }).status === 402 ? (
+            <View
+              style={{
+                backgroundColor: "#eef2ff",
+                borderRadius: 10,
+                padding: 14,
+                marginHorizontal: 20,
+                marginBottom: 14,
+              }}
+            >
+              <Text style={{ fontSize: 14, color: "#4338ca", fontWeight: "600" }}>
+                Upgrade to Pro or Premium to unlock analytics.
+              </Text>
+            </View>
+          ) : analytics ? (
+            <View style={{ gap: 10, paddingHorizontal: 20, paddingBottom: 14 }}>
+              {[
+                ["Total bookings", analytics.total_bookings],
+                [
+                  "Completion rate",
+                  `${(analytics.completion_rate * 100).toFixed(0)}%`,
+                ],
+                ["Unique customers", analytics.unique_customers],
+                [
+                  "Avg. rating",
+                  analytics.avg_rating > 0
+                    ? `${analytics.avg_rating.toFixed(1)} ★ (${analytics.review_count})`
+                    : "No reviews yet",
+                ],
+              ].map(([label, value]) => (
+                <View
+                  key={label as string}
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    paddingVertical: 8,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#f3f4f6",
+                  }}
+                >
+                  <Text style={{ fontSize: 14, color: "#6b7280" }}>{label}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: "#111" }}>
+                    {value}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={{ fontSize: 14, color: "#9ca3af", paddingHorizontal: 20, paddingBottom: 14 }}>Loading analytics…</Text>
+          )}
+        </View>
+      )}
+
+      <View style={styles.section}>
+        <View style={[styles.infoRow, { flexDirection: "column", alignItems: "flex-start", gap: 8 }]}>
+          <Text style={{ fontSize: 15, fontWeight: "700", color: "#111" }}>Refer a friend</Text>
+          {referralData?.referrals[0] ? (
+            <TouchableOpacity
+              onPress={() =>
+                Share.share({
+                  message: `Join MySitter with my referral code: ${referralData.referrals[0].code}`,
+                })
+              }
+            >
+              <Text style={{ fontSize: 20, fontWeight: "700", color: "#4338ca", letterSpacing: 4 }}>
+                {referralData.referrals[0].code}
+              </Text>
+              <Text style={{ fontSize: 12, color: "#6b7280" }}>Tap to share</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.saveBtn}
+              onPress={() => generateCode.mutate()}
+              disabled={generateCode.isPending}
+            >
+              <Text style={styles.saveBtnText}>Get referral code</Text>
+            </TouchableOpacity>
+          )}
+          <Text style={{ fontSize: 13, color: "#6b7280" }}>
+            {referralData?.total_claimed ?? 0} friends joined ·{" "}
+            {referralData?.total_rewarded ?? 0} rewards earned
+          </Text>
+        </View>
+      </View>
+
       {/* Sign out */}
       <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
         <Text style={styles.signOutText}>Sign Out</Text>
@@ -214,7 +322,6 @@ const styles = StyleSheet.create({
   section: {
     backgroundColor: "#fff",
     marginTop: 10,
-    paddingHorizontal: 20,
   },
   infoRow: {
     flexDirection: "row",
@@ -222,6 +329,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#e5e7eb",
+    marginHorizontal: 20,
   },
   infoLabel: { fontSize: 14, color: "#6b7280" },
   infoValue: { fontSize: 14, color: "#111", fontWeight: "500" },

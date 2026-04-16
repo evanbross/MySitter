@@ -212,13 +212,21 @@ export interface ReviewCreate {
   body?: string;
 }
 
+export interface PaginatedReviews {
+  items: Review[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
 // ─── Billing ──────────────────────────────────────────────────────────────────
 
-export interface Subscription {
+export interface SubscriptionResponse {
   id: string;
   provider_id: string;
   stripe_subscription_id: string;
-  tier: SubscriptionTier;
+  tier: "BASIC" | "PRO" | "PREMIUM";
   status: string; // Stripe status: "active" | "past_due" | "incomplete" | "cancelled"
   current_period_end: string; // ISO 8601
 }
@@ -259,6 +267,27 @@ export interface ProviderAnalytics {
   avg_rating: number;
   review_count: number;
   weekly_trend: WeeklyBookingCount[];
+}
+
+// ─── Referrals ────────────────────────────────────────────────────────────────
+
+export type ReferralStatus = "PENDING" | "CLAIMED" | "REWARDED";
+
+export interface Referral {
+  id: string;
+  referrer_id: string;
+  referred_id: string | null;
+  code: string;
+  status: ReferralStatus;
+  created_at: string;
+  claimed_at: string | null;
+  rewarded_at: string | null;
+}
+
+export interface ReferralListResponse {
+  referrals: Referral[];
+  total_claimed: number;
+  total_rewarded: number;
 }
 
 // ─── Pagination ───────────────────────────────────────────────────────────────

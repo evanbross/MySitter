@@ -141,7 +141,6 @@ class ProviderService:
             select(ProviderProfile, User.display_name, User.avatar_url)
             .join(User, User.id == ProviderProfile.user_id)
             .where(ProviderProfile.slug == slug)
-            .where(ProviderProfile.is_active.is_(True))
         )).first()
         if not row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")

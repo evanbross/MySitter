@@ -18,10 +18,17 @@ celery_app.conf.update(
     task_acks_late=True,          # don't ack until task completes (safer)
     worker_prefetch_multiplier=1, # fair scheduling
     beat_schedule={
-        # Expand recurring booking occurrences 8 weeks ahead, runs daily
         "expand-recurring-bookings": {
             "task": "app.workers.tasks.expand_recurring_bookings",
-            "schedule": 60 * 60 * 24,  # every 24 hours
+            "schedule": 60 * 60 * 24,
+        },
+        "send-24h-booking-reminders": {
+            "task": "app.workers.tasks.dispatch_booking_reminders",
+            "schedule": 60 * 60,  # check every hour
+        },
+        "deactivate-expired-grace-period-listings": {
+            "task": "app.workers.tasks.deactivate_expired_grace_periods",
+            "schedule": 60 * 60 * 24,  # once daily
         },
     },
 )

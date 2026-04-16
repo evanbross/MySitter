@@ -1,6 +1,12 @@
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRouter } from "expo-router"; // Added
 import type { Booking, BookingStatus, ServiceType } from "@mysitter/types";
-import { useBookings, useCancelBooking, useConfirmBooking } from "../../hooks/useBookings";
+import {
+  useBookings,
+  useCancelBooking,
+  useConfirmBooking,
+  useCompleteBooking, // Added
+} from "../../hooks/useBookings";
 import { useAuth } from "../../hooks/useAuth";
 
 const STATUS_COLORS: Record<BookingStatus, string> = {
@@ -28,9 +34,11 @@ const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
 
 export default function BookingsTab() {
   const { user } = useAuth();
+  const router = useRouter(); // Added
   const { data, isLoading, refetch } = useBookings();
   const confirm = useConfirmBooking();
   const cancel = useCancelBooking();
+  const complete = useCompleteBooking(); // Added
 
   const bookings = data?.items ?? [];
 
@@ -46,6 +54,20 @@ export default function BookingsTab() {
       { text: "Keep", style: "cancel" },
       { text: "Cancel Booking", style: "destructive", onPress: () => cancel.mutate(booking.id) },
     ]);
+  }
+
+  function handleComplete(booking: Booking) {
+    Alert.alert("Complete Booking", "Mark this booking as completed?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Mark Complete",
+        onPress: () => complete.mutate(booking.id),
+      },
+    ]);
+  }
+
+  function handleLeaveReview(booking: Booking) {
+    router.push(`/bookings/${booking.id}/review`);
   }
 
   if (isLoading) {
@@ -83,6 +105,8 @@ export default function BookingsTab() {
             isProvider={user?.role === "PROVIDER"}
             onConfirm={handleConfirm}
             onCancel={handleCancel}
+            onComplete={handleComplete} // Added
+            onLeaveReview={handleLeaveReview} // Added
           />
         )}
       />
@@ -97,13 +121,24 @@ interface BookingCardProps {
   isProvider: boolean;
   onConfirm: (b: Booking) => void;
   onCancel: (b: Booking) => void;
+  onComplete: (b: Booking) => void; // Added
+  onLeaveReview: (b: Booking) => void; // Added
 }
 
-function BookingCard({ booking, isProvider, onConfirm, onCancel }: BookingCardProps) {
+function BookingCard({
+  booking,
+  isProvider,
+  onConfirm,
+  onCancel,
+  onComplete,
+  onLeaveReview,
+}: BookingCardProps) {
   const start = new Date(booking.start_at);
   const end = new Date(booking.end_at);
   const canConfirm = isProvider && booking.status === "PENDING";
   const canCancel = booking.status === "PENDING" || booking.status === "CONFIRMED";
+  const canComplete = isProvider && booking.status === "CONFIRMED";
+  const canReview = booking.status === "COMPLETED";
 
   return (
     <View style={styles.card}>
@@ -131,20 +166,34 @@ function BookingCard({ booking, isProvider, onConfirm, onCancel }: BookingCardPr
 
       {booking.notes && <Text style={styles.notes}>{booking.notes}</Text>}
 
-      {(canConfirm || canCancel) && (
-        <View style={styles.actions}>
-          {canConfirm && (
-            <TouchableOpacity style={styles.confirmBtn} onPress={() => onConfirm(booking)}>
-              <Text style={styles.confirmBtnText}>Confirm</Text>
-            </TouchableOpacity>
-          )}
-          {canCancel && (
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => onCancel(booking)}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
+      <View style={styles.actions}>
+        {canConfirm && (
+          <TouchableOpacity style={styles.confirmBtn} onPress={() => onConfirm(booking)}>
+            <Text style={styles.confirmBtnText}>Confirm</Text>
+          </TouchableOpacity>
+        )}
+        {canCancel && (
+          <TouchableOpacity style={styles.cancelBtn} onPress={() => onCancel(booking)}>
+            <Text style={styles.cancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+        )}
+        {canComplete && (
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: "#059669" }]}
+            onPress={() => onComplete(booking)}
+          >
+            <Text style={styles.actionBtnText}>Mark Complete</Text>
+          </TouchableOpacity>
+        )}
+        {canReview && (
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: "#6366f1" }]}
+            onPress={() => onLeaveReview(booking)}
+          >
+            <Text style={styles.actionBtnText}>Leave Review</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
@@ -199,4 +248,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelBtnText: { color: "#374151", fontWeight: "600", fontSize: 14 },
+  actionBtn: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  actionBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });

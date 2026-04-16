@@ -27,6 +27,7 @@ class ProviderProfileResponse(BaseModel):
     review_count: int
     # location is serialized separately as GeoPoint
     location: GeoPointSchema | None = None
+    service_area_wkt: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -43,6 +44,7 @@ class ProviderProfileUpdateRequest(BaseModel):
     hourly_rate: float | None = None
     service_radius_miles: int | None = None
     location: GeoPointSchema | None = None
+    service_area_wkt: str | None = None
 
 
 class AvailabilityResponse(BaseModel):

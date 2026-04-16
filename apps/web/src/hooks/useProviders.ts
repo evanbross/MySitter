@@ -117,3 +117,11 @@ export function useDeleteAvailability() {
     },
   });
 }
+
+export function useProviderReviews(providerId: string | undefined, page = 1) {
+  return useQuery({
+    queryKey: ["reviews", "provider", providerId, page],
+    queryFn: () => apiClient.reviews.listForProvider(providerId!, { page }),
+    enabled: !!providerId,
+  });
+}

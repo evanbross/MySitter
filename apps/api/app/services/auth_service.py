@@ -17,6 +17,7 @@ Passkey flow overview:
     5. Server verifies, updates sign_count, issues tokens
 """
 import uuid
+import re
 from typing import TYPE_CHECKING
 
 import pyotp
@@ -107,6 +108,11 @@ class AuthService:
                 is_active=False,
             )
             self._db.add(profile)
+            await self._db.flush()  # populates profile.id before commit
+
+            # Auto-generate slug: slugify display_name + first 8 chars of profile UUID
+            base = re.sub(r"[^a-z0-9]+", "-", user.display_name.lower()).strip("-")
+            profile.slug = f"{base}-{str(profile.id)[:8]}"
             await self._db.commit()
 
         send_welcome_email.delay(str(user.id))

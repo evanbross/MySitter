@@ -32,6 +32,9 @@ class ProviderProfile(Base):
     location: Mapped[object | None] = mapped_column(
         Geography(geometry_type="POINT", srid=4326), nullable=True
     )
+    service_area: Mapped[object | None] = mapped_column(
+        Geography(geometry_type="POLYGON", srid=4326), nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     subscription_tier: Mapped[SubscriptionTier | None] = mapped_column(

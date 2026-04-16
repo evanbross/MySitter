@@ -1,4 +1,5 @@
 import uuid
+from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +18,10 @@ from app.schemas.messaging import (
 from app.services.messaging_service import MessagingService
 
 router = APIRouter(prefix="/conversations", tags=["messaging"])
+
+
+class _ReadResult(BaseModel):
+    marked_read: int
 
 
 @router.get("", response_model=list[ConversationOut])
@@ -52,6 +57,19 @@ async def get_conversation(
     return result
 
 
+@router.patch("/{conversation_id}/read", response_model=_ReadResult)
+async def mark_conversation_read(
+    conversation_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> _ReadResult:
+    """Mark all unread messages in a conversation as read for the current user."""
+    count = await MessagingService(db).mark_conversation_read(
+        current_user, conversation_id
+    )
+    return _ReadResult(marked_read=count)
+
+
 @router.get("/{conversation_id}/messages", response_model=MessagesListOut)
 async def get_messages(
     conversation_id: uuid.UUID,
@@ -77,11 +95,17 @@ async def send_message(
     service = MessagingService(db)
     message = await service.send_message(current_user, conversation_id, body.body)
 
-    # Dispatch a push notification if the recipient has no active WebSocket connection.
+    # Schedule a deferred email if recipient is offline. The task re-checks
+    # read_at before sending, so it is a no-op if the user reads the message
+    # within the 5-minute window.
     recipient_id = await service.get_recipient_id(current_user, conversation_id)
     if recipient_id and not await redis.exists(f"ws:online:{recipient_id}"):
-        from app.workers.tasks import notify_new_message
+        from app.workers.tasks import notify_new_message, send_offline_message_email
 
         notify_new_message.delay(str(message.id))
+        send_offline_message_email.apply_async(
+            args=[str(message.id)],
+            countdown=300,  # 5 minutes
+        )
 
     return message

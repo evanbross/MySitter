@@ -1,12 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import rrulePlugin from "@fullcalendar/rrule";
 import type { EventInput } from "@fullcalendar/core";
-import type { ServiceType } from "@mysitter/types";
-import { useProviderProfile, useProviderProfileBySlug, useProviderAvailability } from "@/hooks/useProviders";
+import type { Review, ServiceType, ProviderProfile } from "@mysitter/types";
+import {
+  useProviderProfile,
+  useProviderProfileBySlug,
+  useProviderAvailability,
+  useProviderReviews, // Added
+} from "@/hooks/useProviders";
 import { useCreateBooking } from "@/hooks/useBookings";
 import { useAuth } from "@/hooks/useAuth";
 import SeoHead from "@/components/SeoHead";
@@ -27,10 +32,52 @@ interface BookingFormState {
   notes: string;
 }
 
+function JsonLdPerson({
+  profile,
+  seoUrl,
+}: {
+  profile: ProviderProfile;
+  seoUrl: string;
+}) {
+  const data = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: profile.display_name,
+    url: seoUrl,
+    description: profile.bio ?? undefined,
+    image: profile.avatar_url ?? undefined,
+    ...(profile.hourly_rate != null && {
+      makesOffer: {
+        "@type": "Offer",
+        priceSpecification: {
+          "@type": "UnitPriceSpecification",
+          price: profile.hourly_rate,
+          priceCurrency: "USD",
+          unitText: "HOUR",
+        },
+      },
+    }),
+    aggregateRating:
+      profile.rating != null && profile.review_count > 0
+        ? {
+            "@type": "AggregateRating",
+            ratingValue: profile.rating.toFixed(1),
+            reviewCount: profile.review_count,
+            bestRating: 5,
+            worstRating: 1,
+          }
+        : undefined,
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+    />
+  );
+}
+
 export default function ProviderProfilePage() {
-  // Supports two route shapes:
-  //   /providers/:providerId  (UUID — internal/legacy)
-  //   /sitters/:slug          (human-readable — SEO)
   const { providerId, slug } = useParams<{ providerId?: string; slug?: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -40,12 +87,14 @@ export default function ProviderProfilePage() {
   const isLoading = loadingById || loadingBySlug;
   const profile = profileById ?? profileBySlug;
 
-  // Availability uses the resolved profile ID once we have it.
   const resolvedId = profile?.id;
   const { data: availability } = useProviderAvailability(resolvedId);
   const createBooking = useCreateBooking();
 
   const [showModal, setShowModal] = useState(false);
+  // Review pagination state — declared before early returns so hook rules are satisfied.
+  const [reviewPage, setReviewPage] = useState(1);
+  const [allReviews, setAllReviews] = useState<Review[]>([]);
   const [bookingForm, setBookingForm] = useState<BookingFormState>({
     service_type: "PET_SITTING",
     start_at: "",
@@ -54,11 +103,26 @@ export default function ProviderProfilePage() {
   });
   const [bookingError, setBookingError] = useState<string | null>(null);
 
+  const { data: reviewsData } = useProviderReviews(resolvedId, reviewPage);
+
+  // Append incoming review pages into accumulatedReviews. Reset when the provider
+  // changes so stale reviews from the previous profile are not shown.
+  useEffect(() => {
+    if (!reviewsData) return;
+    setAllReviews((prev) =>
+      reviewPage === 1 ? reviewsData.items : [...prev, ...reviewsData.items],
+    );
+  }, [reviewsData, reviewPage]);
+
+  // When navigating to a different provider, reset pagination.
+  useEffect(() => {
+    setReviewPage(1);
+    setAllReviews([]);
+  }, [resolvedId]);
+
   if (isLoading) return <div style={{ padding: 24 }}>Loading…</div>;
   if (!profile) return <div style={{ padding: 24 }}>Provider not found.</div>;
 
-  // Build FullCalendar events from availability blocks.
-  // Recurring blocks embed DTSTART so the rrule plugin can expand them.
   const calendarEvents: EventInput[] = (availability ?? []).map((a) => {
     const base: EventInput = {
       id: a.id,
@@ -128,6 +192,24 @@ export default function ProviderProfilePage() {
         image={profile.avatar_url ?? undefined}
         canonicalUrl={seoUrl}
       />
+      <JsonLdPerson profile={profile} seoUrl={seoUrl} />
+
+      {/* Inactive provider banner */}
+      {!profile.is_active && (
+        <div
+          style={{
+            background: "#fef3c7",
+            border: "1px solid #f59e0b",
+            borderRadius: 8,
+            padding: "12px 16px",
+            marginBottom: 24,
+            color: "#92400e",
+            fontWeight: 500,
+          }}
+        >
+          This provider is currently not accepting bookings.
+        </div>
+      )}
 
       {/* ── Profile header ───────────────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 20, marginBottom: 32, flexWrap: "wrap" }}>
@@ -198,18 +280,19 @@ export default function ProviderProfilePage() {
         <div style={{ flexShrink: 0 }}>
           <button
             onClick={() => setShowModal(true)}
+            disabled={!profile.is_active}
             style={{
-              background: "#4f46e5",
+              background: profile.is_active ? "#4f46e5" : "#9ca3af",
               color: "white",
               border: "none",
               borderRadius: 8,
               padding: "12px 24px",
               fontSize: 16,
               fontWeight: 600,
-              cursor: "pointer",
+              cursor: profile.is_active ? "pointer" : "not-allowed",
             }}
           >
-            Book this sitter
+            {profile.is_active ? "Book this sitter" : "Not available"}
           </button>
         </div>
       </div>
@@ -239,6 +322,68 @@ export default function ProviderProfilePage() {
           height={400}
         />
       </div>
+
+      {/* ── Reviews ──────────────────────────────────────────────────── */}
+      {reviewsData && reviewsData.total > 0 && (
+        <div style={{ marginBottom: 32 }}>
+          <h2 style={{ fontSize: 18, margin: "0 0 16px" }}>
+            Reviews ({reviewsData.total})
+          </h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {allReviews.map((review) => (
+              <div
+                key={review.id}
+                style={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 10,
+                  padding: "14px 16px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 6,
+                  }}
+                >
+                  <span style={{ color: "#f59e0b", fontSize: 16 }}>
+                    {"★".repeat(review.rating)}
+                    <span style={{ color: "#d1d5db" }}>
+                      {"★".repeat(5 - review.rating)}
+                    </span>
+                  </span>
+                  <span style={{ fontSize: 13, color: "#6b7280" }}>
+                    {new Date(review.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                {review.body && (
+                  <p style={{ margin: 0, color: "#374151", lineHeight: 1.6 }}>
+                    {review.body}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+          {reviewsData.has_next && (
+            <button
+              onClick={() => setReviewPage((p) => p + 1)}
+              style={{
+                marginTop: 16,
+                background: "none",
+                border: "1px solid #d1d5db",
+                borderRadius: 8,
+                padding: "8px 16px",
+                cursor: "pointer",
+                fontSize: 14,
+                color: "#374151",
+              }}
+            >
+              Load more reviews
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Booking modal ────────────────────────────────────────────────── */}
       {showModal && (

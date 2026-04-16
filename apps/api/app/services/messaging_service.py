@@ -1,9 +1,10 @@
 """MessagingService: conversation and message persistence."""
 import uuid
+from datetime import datetime, timezone
+from sqlalchemy import func, or_, select, update as sa_update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.messaging import Conversation, Message
 from app.models.user import User
@@ -93,6 +94,32 @@ class MessagingService:
         if not conv:
             return None
         return conv.provider_id if sender.id == conv.customer_id else conv.customer_id
+
+    async def mark_conversation_read(
+        self, user: User, conversation_id: uuid.UUID
+    ) -> int:
+        """
+        Set read_at = now() on all messages in this conversation
+        where the current user is NOT the sender and read_at IS NULL.
+        Returns the count of rows updated.
+        """
+        conv = await self.get_conversation_for_user(user, conversation_id)
+        if not conv:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+        now = datetime.now(timezone.utc)
+        result = await self._db.execute(
+            sa_update(Message)
+            .where(
+                Message.conversation_id == conversation_id,
+                Message.sender_id != user.id,
+                Message.read_at.is_(None),
+            )
+            .values(read_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        await self._db.commit()
+        return result.rowcount
 
     # ─── Messages ─────────────────────────────────────────────────────────────
 

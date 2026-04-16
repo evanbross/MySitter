@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
+from app.core.config import settings
 
 from app.models.user import UserRole
 
@@ -26,3 +27,19 @@ class UserUpdateRequest(BaseModel):
     avatar_url: str | None = None
     is_active: bool | None = None
     role: UserRole | None = None
+
+    @field_validator("avatar_url")
+    @classmethod
+    def validate_avatar_url(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if settings.spaces_endpoint and settings.spaces_bucket:
+            allowed_prefix = settings.spaces_endpoint.replace(
+                "://", f"://{settings.spaces_bucket}."
+            )
+            if not v.startswith(allowed_prefix):
+                raise ValueError(
+                    f"avatar_url must be a URL from the platform storage domain. "
+                    f"Use POST /uploads/presign to obtain a valid upload URL."
+                )
+        return v

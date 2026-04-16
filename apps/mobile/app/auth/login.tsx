@@ -34,6 +34,23 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Sign in to mysitter</Text>
+      {/*
+        TODO (Phase 6): Mobile passkey authentication.
+
+        The backend WebAuthn endpoints (/auth/passkey/registration-options,
+        /auth/passkey/register, /auth/passkey/auth-options, /auth/passkey/authenticate)
+        are fully implemented and tested against the web client.
+
+        Blocker: no stable Expo-compatible passkey library exists as of 2026-04-15.
+        Options to evaluate in Phase 6:
+          - expo-passkeys (https://github.com/peterferguson/expo-passkeys) — watch for
+            stable release with Android support.
+          - react-native-passkey — evaluate when it supports Expo managed workflow.
+          - Custom native module wrapping Android CredentialManager + iOS ASAuthorizationController.
+
+        When a library lands, wire it against the existing apiClient.auth.getPasskeyAuthOptions()
+        and apiClient.auth.verifyPasskeyAuth() calls in packages/api-client/src/client.ts.
+      */}
       <TextInput
         style={styles.input}
         placeholder="Email"

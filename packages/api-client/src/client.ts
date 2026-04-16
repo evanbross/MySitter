@@ -1,6 +1,7 @@
 import type {
   ApiError,
   Availability,
+  TokenPair,
   AvailabilityCreate,
   AvailabilityUpdate,
   Booking,
@@ -14,12 +15,11 @@ import type {
   ProviderProfile,
   ProviderProfileUpdate,
   ProviderSearchResult,
+  Referral,
+  ReferralListResponse,
   Review,
-  ReviewCreate,
-  SubscribeRequest,
-  SubscribeResponse,
-  Subscription,
-  TokenPair,
+  PaginatedReviews, // Added
+  SubscriptionResponse, // Added
   UploadUrlRequest,
   UploadUrlResponse,
   User,
@@ -50,6 +50,7 @@ export class ApiClient {
     path: string,
     body?: unknown,
     isPublic = false,
+    params?: Record<string, string | number | boolean | undefined>, // Added for params object
   ): Promise<T> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -60,7 +61,17 @@ export class ApiClient {
       if (token) headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    let url = `${this.baseUrl}${path}`;
+    if (params) {
+      const qs = new URLSearchParams(
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => [k, String(v)]),
+      ).toString();
+      if (qs) url += `?${qs}`;
+    }
+
+    const response = await fetch(url, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -147,7 +158,8 @@ export class ApiClient {
 
   users = {
     me: () => this.request<User>("GET", "/users/me"),
-    update: (data: UserUpdate) => this.request<User>("PATCH", "/users/me", data),
+    updateMe: (body: { display_name?: string; phone?: string; avatar_url?: string }) =>
+      this.request<User>("PATCH", "/users/me", body),
     registerPushToken: (token: string) =>
       this.request<void>("POST", "/users/me/push-token", { token }),
   };
@@ -162,16 +174,12 @@ export class ApiClient {
       service_type?: string;
       page?: number;
     }) => {
-      const qs = new URLSearchParams(
-        Object.entries(params)
-          .filter(([, v]) => v !== undefined)
-          .map(([k, v]) => [k, String(v)]),
-      ).toString();
       return this.request<PaginatedResponse<ProviderSearchResult>>(
         "GET",
-        `/providers/search?${qs}`,
+        `/providers/search`,
         undefined,
         true,
+        params,
       );
     },
 
@@ -217,15 +225,7 @@ export class ApiClient {
       this.request<Booking>("POST", "/bookings", data),
 
     list: (params?: { status?: string; page?: number }) => {
-      const qs = params
-        ? "?" +
-          new URLSearchParams(
-            Object.entries(params)
-              .filter(([, v]) => v !== undefined)
-              .map(([k, v]) => [k, String(v)]),
-          ).toString()
-        : "";
-      return this.request<PaginatedResponse<Booking>>("GET", `/bookings${qs}`);
+      return this.request<PaginatedResponse<Booking>>("GET", `/bookings`, undefined, false, params);
     },
 
     get: (bookingId: string) =>
@@ -236,20 +236,30 @@ export class ApiClient {
 
     cancel: (bookingId: string) =>
       this.request<Booking>("POST", `/bookings/${bookingId}/cancel`),
+
+    complete: (bookingId: string) =>
+      this.request<Booking>("POST", `/bookings/${bookingId}/complete`),
   };
 
   // ─── Reviews ──────────────────────────────────────────────────────────────
 
   reviews = {
-    create: (bookingId: string, data: ReviewCreate) =>
-      this.request<Review>("POST", `/reviews/bookings/${bookingId}`, data),
+    createForBooking: (bookingId: string, body: { rating: number; body?: string }) =>
+      this.request<Review>("POST", `/reviews/bookings/${bookingId}`, body),
 
-    listForProvider: (providerId: string, page = 1, pageSize = 20) =>
-      this.request<PaginatedResponse<Review>>(
+    getMyReviewForBooking: (bookingId: string) =>
+      this.request<Review | null>("GET", `/reviews/bookings/${bookingId}/my-review`),
+
+    listForProvider: (
+      providerId: string,
+      params?: { page?: number; page_size?: number },
+    ) =>
+      this.request<PaginatedReviews>(
         "GET",
-        `/reviews/providers/${providerId}/reviews?page=${page}&page_size=${pageSize}`,
+        `/reviews/providers/${providerId}/reviews`,
         undefined,
-        true
+        false,
+        params,
       ),
   };
 
@@ -262,8 +272,7 @@ export class ApiClient {
 
   // ─── Analytics ──────────────────────────────────────────────────────────────
   analytics = {
-    getMyAnalytics: () =>
-      this.request<ProviderAnalytics>("GET", "/analytics/me")
+    getMe: () => this.request<ProviderAnalytics>("GET", "/analytics/me")
   };
 
   // ─── SEO ──────────────────────────────────────────────────────────────────
@@ -276,17 +285,20 @@ export class ApiClient {
   // ─── Billing ──────────────────────────────────────────────────────────────
 
   billing = {
-    subscribe: (data: SubscribeRequest) =>
-      this.request<SubscribeResponse>("POST", "/billing/subscribe", data),
+    getSubscription: () =>
+      this.request<SubscriptionResponse | null>("GET", "/billing/subscription"),
 
     getPortalUrl: (returnUrl: string) =>
       this.request<{ url: string }>(
         "GET",
-        `/billing/portal?return_url=${encodeURIComponent(returnUrl)}`,
+        "/billing/portal",
+        undefined,
+        false,
+        { return_url: returnUrl },
       ),
 
-    getSubscription: () =>
-      this.request<Subscription | null>("GET", "/billing/subscription"),
+    subscribe: (tier: string) =>
+      this.request<{ client_secret: string }>("POST", "/billing/subscribe", { tier }),
   };
 
   // ─── Messaging ────────────────────────────────────────────────────────────
@@ -299,12 +311,12 @@ export class ApiClient {
       this.request<Conversation>("GET", `/conversations/${conversationId}`),
 
     getMessages: (conversationId: string, params?: { before?: string }) => {
-      const qs = params?.before
-        ? `?before=${params.before}`
-        : "";
       return this.request<PaginatedResponse<Message>>(
         "GET",
-        `/conversations/${conversationId}/messages${qs}`,
+        `/conversations/${conversationId}/messages`,
+        undefined,
+        false,
+        params,
       );
     },
 
@@ -317,6 +329,26 @@ export class ApiClient {
 
     startConversation: (providerId: string) =>
       this.request<Conversation>("POST", "/conversations", { provider_id: providerId }),
+      
+    markRead: (conversationId: string) =>
+      this.request<{ marked_read: number }>(
+        "PATCH",
+        `/conversations/${conversationId}/read`,
+        undefined,
+      ),
+  };
+
+  // ─── Referrals ────────────────────────────────────────────────────────────
+
+  referrals = {
+    generate: () =>
+      this.request<Referral>("POST", "/referrals/generate"),
+
+    claim: (code: string) =>
+      this.request<Referral>("POST", `/referrals/claim/${code}`),
+
+    listMine: () =>
+      this.request<ReferralListResponse>("GET", "/referrals/me"),
   };
 }
 

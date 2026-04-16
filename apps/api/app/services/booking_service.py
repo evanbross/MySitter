@@ -1,4 +1,4 @@
-"""BookingService: create, list, confirm, cancel bookings and post reviews."""
+"""BookingService: create, list, confirm, cancel and complete bookings."""
 import uuid
 from datetime import datetime
 
@@ -6,14 +6,12 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.booking import Booking, BookingStatus, Review
+from app.models.booking import Booking, BookingStatus
 from app.models.user import User, UserRole
 from app.schemas.booking import (
     BookingCreateRequest,
     BookingResponse,
     PaginatedBookings,
-    ReviewCreateRequest,
-    ReviewResponse,
 )
 
 _PAGE_SIZE = 20
@@ -98,7 +96,10 @@ class BookingService:
         booking = await self.get_for_user(user, booking_id)
         if booking.status != BookingStatus.PENDING:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Booking is not pending")
+        
+        await self._check_availability_coverage(booking.provider_id, booking.start_at, booking.end_at)
         await self._check_conflicts(booking.provider_id, booking.start_at, booking.end_at, booking.id)
+        
         booking.status = BookingStatus.CONFIRMED
         await self._db.commit()
         await self._db.refresh(booking)
@@ -131,6 +132,50 @@ class BookingService:
                 detail="Provider has a conflicting confirmed booking",
             )
 
+    async def _check_availability_coverage(
+        self,
+        provider_id: uuid.UUID,
+        start_at: datetime,
+        end_at: datetime,
+    ) -> None:
+        """
+        Raise 422 if the requested window is not covered by any of the provider's
+        Availability blocks.
+        """
+        from dateutil.rrule import rrulestr
+        from app.models.provider import Availability
+
+        blocks = list(
+            (
+                await self._db.execute(
+                    select(Availability).where(Availability.provider_id == provider_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        booking_duration = end_at - start_at
+        search_from = start_at - booking_duration
+        search_to = end_at
+
+        for block in blocks:
+            block_duration = block.end_at - block.start_at
+            if block.rrule_string:
+                rule = rrulestr(block.rrule_string, dtstart=block.start_at)
+                for occ_start in rule.between(search_from, search_to, inc=True):
+                    occ_end = occ_start + block_duration
+                    if occ_start <= start_at and occ_end >= end_at:
+                        return  # covered
+            else:
+                if block.start_at <= start_at and block.end_at >= end_at:
+                    return  # covered
+
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The requested time window does not fall within the provider's availability",
+        )
+
     async def cancel(self, user: User, booking_id: uuid.UUID) -> Booking:
         booking = await self.get_for_user(user, booking_id)
         if booking.status == BookingStatus.COMPLETED:
@@ -142,32 +187,30 @@ class BookingService:
         send_booking_notification.delay(str(booking.id), "CANCELLED")
         return booking
 
-    async def create_review(
-        self, user: User, booking_id: uuid.UUID, body: ReviewCreateRequest
-    ) -> Review:
+    async def complete(self, user: User, booking_id: uuid.UUID) -> Booking:
+        """
+        Transition a CONFIRMED booking to COMPLETED.
+
+        Only the provider who owns the booking can mark it complete.
+        Customers cannot — this prevents premature completion before service is rendered.
+        """
+        if user.role != UserRole.PROVIDER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only providers can mark bookings as complete",
+            )
         booking = await self.get_for_user(user, booking_id)
-        if booking.status != BookingStatus.COMPLETED:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Can only review completed bookings")
-
-        existing = await self._db.scalar(select(Review).where(Review.booking_id == booking_id))
-        if existing:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already reviewed")
-
-        if not (1 <= body.rating <= 5):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Rating must be 1–5")
-
-        reviewee_id = booking.provider_id if user.id == booking.customer_id else booking.customer_id
-        review = Review(
-            booking_id=booking_id,
-            reviewer_id=user.id,
-            reviewee_id=reviewee_id,
-            rating=body.rating,
-            body=body.body,
-        )
-        self._db.add(review)
+        if booking.status != BookingStatus.CONFIRMED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Only CONFIRMED bookings can be marked complete",
+            )
+        booking.status = BookingStatus.COMPLETED
         await self._db.commit()
-        await self._db.refresh(review)
-        return review
+        await self._db.refresh(booking)
+        from app.workers.tasks import send_booking_notification
+        send_booking_notification.delay(str(booking.id), "COMPLETED")
+        return booking
 
     @staticmethod
     def _assert_participant(

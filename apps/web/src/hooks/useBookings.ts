@@ -55,3 +55,27 @@ export function useCancelBooking() {
     },
   });
 }
+
+export function useCompleteBooking() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (bookingId: string) => apiClient.bookings.complete(bookingId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bookings"] }),
+  });
+}
+
+export function useCreateReview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      bookingId,
+      rating,
+      body,
+    }: {
+      bookingId: string;
+      rating: number;
+      body?: string;
+    }) => apiClient.reviews.createForBooking(bookingId, { rating, body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bookings"] }),
+  });
+}

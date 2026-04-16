@@ -11,6 +11,9 @@ import CalendarPage from "@/pages/CalendarPage";
 import DashboardPage from "@/pages/DashboardPage";
 import NotFoundPage from "@/pages/NotFoundPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
+import ReferralPage from "@/pages/ReferralPage";
+import BillingPage from "@/pages/BillingPage";
+import ProfilePage from "@/pages/ProfilePage"; // Added
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -67,6 +70,30 @@ export default function App() {
         element={
           <RequireAuth>
             <AnalyticsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/referrals"
+        element={
+          <RequireAuth>
+            <ReferralPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/billing"
+        element={
+          <RequireAuth>
+            <BillingPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <RequireAuth>
+            <ProfilePage />
           </RequireAuth>
         }
       />

@@ -89,6 +89,60 @@ def expand_recurring_bookings() -> None:
     engine.dispose()
 
 
+@celery_app.task
+def dispatch_booking_reminders() -> None:
+    """
+    Find all CONFIRMED bookings whose start_at is between 23h and 25h from now
+    and enqueue a send_booking_reminder task for each.
+    """
+    now = datetime.now(timezone.utc)
+    window_start = now + timedelta(hours=23)
+    window_end = now + timedelta(hours=25)
+
+    engine = create_engine(settings.database_sync_url)
+    with SyncSession(engine) as session:
+        upcoming = session.scalars(
+            select(Booking).where(
+                Booking.status == BookingStatus.CONFIRMED,
+                Booking.start_at >= window_start,
+                Booking.start_at <= window_end,
+            )
+        ).all()
+        for booking in upcoming:
+            send_booking_reminder.delay(str(booking.id))
+    engine.dispose()
+
+
+@celery_app.task
+def deactivate_expired_grace_periods() -> None:
+    """
+    Find ProviderProfiles in 'grace_period' subscription_status whose
+    Subscription.current_period_end has passed, and deactivate their listings.
+    """
+    from app.models.provider import ProviderProfile, Subscription
+
+    now = datetime.now(timezone.utc)
+    engine = create_engine(settings.database_sync_url)
+
+    with SyncSession(engine) as session:
+        expired = session.scalars(
+            select(ProviderProfile)
+            .join(Subscription, Subscription.provider_id == ProviderProfile.id)
+            .where(
+                ProviderProfile.subscription_status == "grace_period",
+                Subscription.current_period_end < now,
+            )
+        ).all()
+
+        for profile in expired:
+            profile.is_active = False
+            profile.subscription_status = "expired"
+
+        session.commit()
+
+    engine.dispose()
+
+
 # ─── Message tasks ────────────────────────────────────────────────────────────
 
 
@@ -113,7 +167,147 @@ def notify_new_message(self, message_id: str) -> None:
         raise self.retry(exc=exc)
 
 
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def send_offline_message_email(self, message_id: str) -> None:
+    """
+    Send an email notification for an unread message.
+    Called with countdown=300 (5 minutes) from the send_message endpoint.
+    The task checks read_at just before sending — if the recipient has
+    since opened the app and read the message, it skips the email.
+    """
+    try:
+        _send_offline_message_email(message_id)
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def send_admin_notification(
+    self,
+    user_id: str,
+    subject: str,
+    message: str,
+    channels: list[str],
+) -> None:
+    """Send an admin-triggered notification to a single user via requested channels."""
+    try:
+        _send_admin_notification(user_id, subject, message, channels)
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def send_subscription_renewal_email(
+    self, user_id: str, tier: str, period_end_iso: str
+) -> None:
+    """Send a subscription activated/renewed confirmation email."""
+    try:
+        _send_subscription_renewal_email(user_id, tier, period_end_iso)
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
 # ─── Implementation helpers ───────────────────────────────────────────────────
+
+
+def _send_subscription_renewal_email(user_id: str, tier: str, period_end_iso: str) -> None:
+    engine = create_engine(settings.database_sync_url)
+    with SyncSession(engine) as session:
+        user = session.scalar(select(User).where(User.id == uuid.UUID(user_id)))
+        if not user or not settings.resend_api_key:
+            return
+
+        import resend
+        resend.api_key = settings.resend_api_key
+        resend.Emails.send({
+            "from": settings.email_from,
+            "to": [user.email],
+            "subject": f"Your MySitter {tier} subscription is active",
+            "html": email_renderer.render(
+                "subscription_renewal.html",
+                user_name=user.display_name,
+                tier=tier,
+                period_end=datetime.fromisoformat(period_end_iso).strftime("%B %d, %Y"),
+            ),
+        })
+    engine.dispose()
+
+
+def _send_admin_notification(user_id: str, subject: str, message: str, channels: list[str]) -> None:
+    engine = create_engine(settings.database_sync_url)
+    with SyncSession(engine) as session:
+        user = session.scalar(select(User).where(User.id == uuid.UUID(user_id)))
+        if not user:
+            return
+
+        if "email" in channels and settings.resend_api_key:
+            import resend
+            resend.api_key = settings.resend_api_key
+            resend.Emails.send({
+                "from": settings.email_from,
+                "to": [user.email],
+                "subject": subject,
+                "html": message,
+            })
+        
+        if "sms" in channels and user.phone and settings.twilio_account_sid and settings.twilio_auth_token:
+            from twilio.rest import Client as TwilioClient
+            twilio = TwilioClient(settings.twilio_account_sid, settings.twilio_auth_token)
+            twilio.messages.create(
+                body=message,
+                from_=settings.twilio_from_number,
+                to=user.phone,
+            )
+
+        if "push" in channels and user.expo_push_token:
+            _send_expo_push(
+                token=user.expo_push_token,
+                title=subject,
+                body=message,
+            )
+    engine.dispose()
+
+
+def _send_offline_message_email(message_id: str) -> None:
+    """Load the message and send an email notification to the recipient if still unread."""
+    engine = create_engine(settings.database_sync_url)
+
+    with SyncSession(engine) as session:
+        msg = session.scalar(
+            select(Message).where(Message.id == uuid.UUID(message_id))
+        )
+        if not msg or msg.read_at is not None:
+            return
+
+        conv = session.scalar(
+            select(Conversation).where(Conversation.id == msg.conversation_id)
+        )
+        if not conv:
+            return
+
+        recipient_id = (
+            conv.provider_id if msg.sender_id == conv.customer_id else conv.customer_id
+        )
+        recipient = session.scalar(select(User).where(User.id == recipient_id))
+        sender = session.scalar(select(User).where(User.id == msg.sender_id))
+
+        if not recipient or not sender or not settings.resend_api_key:
+            return
+
+        import resend
+        resend.api_key = settings.resend_api_key
+        resend.Emails.send({
+            "from": settings.email_from,
+            "to": [recipient.email],
+            "subject": f"You have an unread message from {sender.display_name}",
+            "html": email_renderer.render(
+                "message_notification.html",
+                sender_name=sender.display_name,
+                message_body=msg.body,
+            ),
+        })
+
+    engine.dispose()
 
 
 def _notify_booking(booking_id: str, event: str) -> None:

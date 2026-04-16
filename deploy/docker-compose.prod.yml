@@ -46,7 +46,16 @@ services:
       - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Certbot HTTP-01 challenge webroot (used during cert issuance/renewal)
+      - certbot_webroot:/var/www/certbot:ro
+      # TLS certificates — bind-mount /etc/letsencrypt after first certbot run,
+      # or pre-populate with a self-signed cert for staging.
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /etc/ssl:/etc/ssl:ro
     depends_on:
       - api1
       - api2
     restart: unless-stopped
+
+volumes:
+  certbot_webroot:

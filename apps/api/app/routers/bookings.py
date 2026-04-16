@@ -9,8 +9,6 @@ from app.schemas.booking import (
     BookingCreateRequest,
     BookingResponse,
     PaginatedBookings,
-    ReviewCreateRequest,
-    ReviewResponse,
 )
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -67,12 +65,12 @@ async def cancel_booking(
     return await BookingService(db).cancel(current_user, booking_id)
 
 
-@router.post("/{booking_id}/review", response_model=ReviewResponse, status_code=201)
-async def create_review(
+@router.post("/{booking_id}/complete", response_model=BookingResponse)
+async def complete_booking(
     booking_id: uuid.UUID,
-    body: ReviewCreateRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> ReviewResponse:
+) -> BookingResponse:
+    """Mark a CONFIRMED booking as COMPLETED. Provider-only."""
     from app.services.booking_service import BookingService
-    return await BookingService(db).create_review(current_user, booking_id, body)
+    return await BookingService(db).complete(current_user, booking_id)
