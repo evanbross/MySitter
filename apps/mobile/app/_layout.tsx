@@ -6,7 +6,8 @@ import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 
-import { apiClient, getAccessTokenSync } from "../lib/apiClient";
+import { apiClient } from "../lib/apiClient";
+import { useAuth } from "../hooks/useAuth";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,43 +24,48 @@ Notifications.setNotificationHandler({
   }),
 });
 
-async function registerPushToken(): Promise<void> {
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  let finalStatus = existing;
-  if (existing !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  if (finalStatus !== "granted") return;
-
-  // Android requires a notification channel.
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "Default",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-    });
-  }
-
-  try {
-    const projectId: string | undefined =
-      Constants.expoConfig?.extra?.eas?.projectId;
-    const { data: token } = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined,
-    );
-    await apiClient.users.registerPushToken(token);
-  } catch {
-    // Push registration is best-effort — never crash the app over it.
-  }
-}
-
 export default function RootLayout() {
+  const { user } = useAuth();
+
   useEffect(() => {
-    // Attempt to register the push token if the user is already logged in.
-    if (getAccessTokenSync()) {
-      registerPushToken();
-    }
-  }, []);
+    if (!user) return;
+    (async () => {
+      // Physical devices only — simulators cannot receive push notifications.
+      if (Platform.OS === "web") return;
+
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== "granted") return;
+
+      // Android requires a notification channel.
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "Default",
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+        });
+      }
+
+      try {
+        const { data: token } = await Notifications.getExpoPushTokenAsync({
+          projectId: Constants.expoConfig?.extra?.eas?.projectId,
+        });
+
+        // Fire-and-forget — don't block the UI on this.
+        apiClient.users.updateMe({ expo_push_token: token }).catch(() => {
+          // Non-fatal — notifications will simply not be delivered until next launch.
+        });
+      } catch {
+        // Push registration is best-effort — never crash the app over it.
+      }
+    })();
+  }, [user?.id]); // Only re-run if the logged-in user changes.
 
   return (
     <QueryClientProvider client={queryClient}>

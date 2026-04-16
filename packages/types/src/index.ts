@@ -65,6 +65,7 @@ export interface UserUpdate {
   display_name?: string;
   phone?: string;
   avatar_url?: string;
+  expo_push_token?: string;
 }
 
 // ─── Provider Profile ─────────────────────────────────────────────────────────

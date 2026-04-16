@@ -30,5 +30,9 @@ celery_app.conf.update(
             "task": "app.workers.tasks.deactivate_expired_grace_periods",
             "schedule": 60 * 60 * 24,  # once daily
         },
+        "dispatch-referral-rewards": {
+            "task": "app.workers.tasks.dispatch_referral_rewards",
+            "schedule": 60 * 60 * 24,  # once daily at midnight (default beat anchor)
+        },
     },
 )

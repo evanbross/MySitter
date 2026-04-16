@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from dateutil.rrule import rrulestr
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, func
 from sqlalchemy.orm import Session as SyncSession
 
 from app.core.config import settings
@@ -207,7 +207,112 @@ def send_subscription_renewal_email(
         raise self.retry(exc=exc)
 
 
+# ─── Referral tasks ───────────────────────────────────────────────────────────
+
+
+@celery_app.task
+def dispatch_referral_rewards() -> None:
+    """
+    Find CLAIMED referrals whose referred user has completed at least one booking,
+    issue a Stripe coupon to the referrer, and mark the referral as REWARDED.
+
+    Runs nightly. Idempotent — REWARDED referrals are skipped because they are
+    filtered by status == CLAIMED.
+    """
+    from app.models.booking import Booking, BookingStatus
+    from app.models.referral import Referral, ReferralStatus
+
+    engine = create_engine(settings.database_sync_url)
+    with SyncSession(engine) as session:
+        # Find all CLAIMED referrals.
+        claimed = session.scalars(
+            select(Referral).where(Referral.status == ReferralStatus.CLAIMED)
+        ).all()
+
+        for referral in claimed:
+            if not referral.referred_id:
+                continue
+
+            # Check if the referred user has at least one COMPLETED booking.
+            has_completed = session.scalar(
+                select(func.count())
+                .select_from(Booking)
+                .where(
+                    Booking.customer_id == referral.referred_id,
+                    Booking.status == BookingStatus.COMPLETED,
+                )
+            ) or 0
+
+            if has_completed == 0:
+                continue
+
+            # Issue the reward — enqueue per-referral so failures are isolated.
+            issue_referral_reward.delay(str(referral.id))
+
+        session.commit()
+
+    engine.dispose()
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=120)
+def issue_referral_reward(self, referral_id: str) -> None:
+    """
+    Issue a one-month free coupon to the referrer via Stripe and mark the
+    referral as REWARDED. Retries up to 3 times on failure.
+    """
+    try:
+        _issue_referral_reward(referral_id)
+    except Exception as exc:
+        raise self.retry(exc=exc)
+
+
 # ─── Implementation helpers ───────────────────────────────────────────────────
+
+
+def _issue_referral_reward(referral_id: str) -> None:
+    """
+    Helper (synchronous) — loads the referral, issues a Stripe coupon, marks REWARDED.
+
+    Coupon: one free month applied as a 100% discount for one invoice cycle.
+    Uses Stripe's Customer-level promotion code so it applies automatically
+    on the next renewal invoice.
+    """
+    import stripe
+    from app.models.referral import Referral, ReferralStatus
+    from app.models.provider import ProviderProfile
+    from datetime import datetime, timezone
+
+    stripe.api_key = settings.stripe_secret_key
+
+    engine = create_engine(settings.database_sync_url)
+    with SyncSession(engine) as session:
+        referral = session.get(Referral, referral_id)
+        if not referral or referral.status != ReferralStatus.CLAIMED:
+            # Already rewarded or not found — idempotent exit.
+            return
+
+        # Resolve the referrer's Stripe customer ID via their ProviderProfile.
+        profile = session.scalar(
+            select(ProviderProfile).where(ProviderProfile.user_id == referral.referrer_id)
+        )
+
+        if profile and profile.stripe_customer_id and settings.stripe_secret_key:
+            # Create a one-time coupon (100% off for one invoice cycle).
+            # The credit amount is hardcoded to the Pro tier price as a reasonable default.
+            # A future improvement would look up the referrer's actual subscription tier
+            # and credit the matching amount.
+            stripe.Customer.create_balance_transaction(
+                profile.stripe_customer_id,
+                amount=-3900,
+                currency="usd",
+                description=f"Referral reward for code {referral.code}",
+            )
+
+        referral.status = ReferralStatus.REWARDED
+        referral.rewarded_at = datetime.now(timezone.utc)
+        session.commit()
+
+    engine.dispose()
 
 
 def _send_subscription_renewal_email(user_id: str, tier: str, period_end_iso: str) -> None:

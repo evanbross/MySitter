@@ -1,11 +1,11 @@
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, Share } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, Share, Linking } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProviderProfile, UserUpdate } from "@mysitter/types";
 import { useAuth } from "../../hooks/useAuth";
-import { apiClient } from "../../lib/apiClient";
-import { useProviderAnalytics } from "../../hooks/useAnalytics"; // Added
+import { apiClient, API_URL } from "../../lib/apiClient";
+import { useProviderAnalytics } from "../../hooks/useAnalytics";
 
 const TIER_LABELS: Record<string, string> = {
   BASIC: "Basic",
@@ -41,9 +41,7 @@ export default function ProfileTab() {
   });
 
   // Only fire the analytics query for providers — customers always get 402.
-  const { data: analytics, error: analyticsError } = useProviderAnalytics(
-    user?.role === "PROVIDER",
-  );
+  const { data: analytics, error: analyticsError } = useProviderAnalytics();
 
   const generateCode = useMutation({
     mutationFn: () => apiClient.referrals.generate(),
@@ -172,6 +170,20 @@ export default function ProfileTab() {
           </Text>
         </View>
       </View>
+
+      {user.role === "PROVIDER" && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.infoRow}
+            onPress={() =>
+              Linking.openURL(`${API_URL.replace("/api", "")}/provider-settings`)
+            }
+          >
+            <Text style={styles.infoLabel}>Sitter profile</Text>
+            <Text style={[styles.infoValue, { color: "#6366f1" }]}>Edit on web →</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Analytics Section */}
       {user?.role === "PROVIDER" && (

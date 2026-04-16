@@ -1,0 +1,3 @@
+[submodule "Shared-Dev-Tools"]
+	path = Shared-Dev-Tools
+	url = ..\\Shared-Dev-Tools

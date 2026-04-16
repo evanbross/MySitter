@@ -27,6 +27,7 @@ class UserUpdateRequest(BaseModel):
     avatar_url: str | None = None
     is_active: bool | None = None
     role: UserRole | None = None
+    expo_push_token: str | None = None
 
     @field_validator("avatar_url")
     @classmethod
