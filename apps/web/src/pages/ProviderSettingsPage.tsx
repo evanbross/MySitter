@@ -25,7 +25,7 @@ const SERVICE_LABELS: Record<ServiceType, string> = {
 export default function ProviderSettingsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { data: profile, isLoading } = useMyProviderProfile();
+  const { data: profile, isLoading } = useMyProviderProfile(user?.role === "PROVIDER");
   const update = useUpdateProviderProfile();
 
   const [bio, setBio] = useState("");

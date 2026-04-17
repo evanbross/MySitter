@@ -158,10 +158,8 @@ export class ApiClient {
 
   users = {
     me: () => this.request<User>("GET", "/users/me"),
-    updateMe: (body: { display_name?: string; phone?: string; avatar_url?: string }) =>
+    updateMe: (body: UserUpdate) =>
       this.request<User>("PATCH", "/users/me", body),
-    registerPushToken: (token: string) =>
-      this.request<void>("POST", "/users/me/push-token", { token }),
   };
 
   // ─── Providers ────────────────────────────────────────────────────────────

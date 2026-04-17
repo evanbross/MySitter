@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProviderProfile, UserUpdate } from "@mysitter/types";
 import { useAuth } from "../../hooks/useAuth";
-import { apiClient, API_URL } from "../../lib/apiClient";
+import { apiClient, API_BASE } from "../../lib/apiClient";
 import { useProviderAnalytics } from "../../hooks/useAnalytics";
 
 const TIER_LABELS: Record<string, string> = {
@@ -176,7 +176,7 @@ export default function ProfileTab() {
           <TouchableOpacity
             style={styles.infoRow}
             onPress={() =>
-              Linking.openURL(`${API_URL.replace("/api", "")}/provider-settings`)
+              Linking.openURL(`${API_BASE.replace("/api", "")}/provider-settings`)
             }
           >
             <Text style={styles.infoLabel}>Sitter profile</Text>

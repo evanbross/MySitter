@@ -27,21 +27,17 @@ class ReviewService:
                 detail="Can only review completed bookings",
             )
 
+        if user.id != booking.customer_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only customers can leave reviews",
+            )
+
         provider_profile = await self._db.get(ProviderProfile, booking.provider_id)
         if provider_profile is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
 
-        if user.id not in (booking.customer_id, provider_profile.user_id):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not a participant in this booking",
-            )
-
-        reviewee_id = (
-            provider_profile.user_id
-            if user.id == booking.customer_id
-            else booking.customer_id
-        )
+        reviewee_id = provider_profile.user_id
 
         existing = await self._db.scalar(
             select(Review).where(

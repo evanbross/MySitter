@@ -4,8 +4,6 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, field_validator
 from app.core.config import settings
 
-from app.models.user import UserRole
-
 
 class UserResponse(BaseModel):
     id: uuid.UUID
@@ -25,8 +23,6 @@ class UserUpdateRequest(BaseModel):
     display_name: str | None = None
     phone: str | None = None
     avatar_url: str | None = None
-    is_active: bool | None = None
-    role: UserRole | None = None
     expo_push_token: str | None = None
 
     @field_validator("avatar_url")

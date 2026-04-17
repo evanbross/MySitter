@@ -1,9 +1,10 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db, get_read_db
+from app.core.limiter import limiter
 from app.models.user import User
 from app.schemas.review import PaginatedReviews, ReviewCreateRequest, ReviewResponse
 from app.services.review_service import ReviewService
@@ -16,7 +17,9 @@ router = APIRouter(prefix="/reviews", tags=["reviews"])
     response_model=ReviewResponse,
     status_code=201,
 )
+@limiter.limit("5/minute")
 async def create_review(
+    request: Request,
     booking_id: uuid.UUID,
     body: ReviewCreateRequest,
     current_user: User = Depends(get_current_user),

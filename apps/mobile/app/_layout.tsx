@@ -25,6 +25,21 @@ Notifications.setNotificationHandler({
 });
 
 export default function RootLayout() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <StatusBar style="auto" />
+      <RootLayoutInner />
+    </QueryClientProvider>
+  );
+}
+
+/**
+ * Inner layout rendered inside QueryClientProvider so that useAuth() —
+ * which calls useQuery internally — has access to the query client context.
+ * Gemini placed useAuth() in RootLayout (outside the provider), which would
+ * throw "No QueryClient set" on every app launch.
+ */
+function RootLayoutInner() {
   const { user } = useAuth();
 
   useEffect(() => {
@@ -68,17 +83,14 @@ export default function RootLayout() {
   }, [user?.id]); // Only re-run if the logged-in user changes.
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <StatusBar style="auto" />
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="auth/login" options={{ title: "Sign In" }} />
-        <Stack.Screen name="auth/register" options={{ title: "Create Account" }} />
-        <Stack.Screen name="providers/[id]" options={{ title: "Sitter Profile" }} />
-        <Stack.Screen name="bookings/[id]" options={{ title: "Booking" }} />
-        <Stack.Screen name="bookings/new" options={{ title: "New Booking" }} />
-        <Stack.Screen name="conversations/[id]" options={{ title: "Messages" }} />
-      </Stack>
-    </QueryClientProvider>
+    <Stack>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="auth/login" options={{ title: "Sign In" }} />
+      <Stack.Screen name="auth/register" options={{ title: "Create Account" }} />
+      <Stack.Screen name="providers/[id]" options={{ title: "Sitter Profile" }} />
+      <Stack.Screen name="bookings/[id]" options={{ title: "Booking" }} />
+      <Stack.Screen name="bookings/new" options={{ title: "New Booking" }} />
+      <Stack.Screen name="conversations/[id]" options={{ title: "Messages" }} />
+    </Stack>
   );
 }

@@ -22,7 +22,7 @@ export default function ProviderDetailScreen() {
 
   const { data: reviewsData } = useQuery<PaginatedResponse<Review>>({
     queryKey: ["reviews", "provider", id],
-    queryFn: () => apiClient.reviews.listForProvider(id!, 1, 10),
+    queryFn: () => apiClient.reviews.listForProvider(id!, { page: 1, page_size: 10 }),
     enabled: !!id,
   });
 

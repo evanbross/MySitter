@@ -41,3 +41,25 @@ async def test_me_returns_user(client: AsyncClient, customer_token: str) -> None
     )
     assert resp.status_code == 200
     assert resp.json()["email"] == "customer@test.com"
+
+@pytest.mark.asyncio
+async def test_register_duplicate_email(client: AsyncClient) -> None:
+    payload = {
+        "email": "duplicate@test.com",
+        "password": "Password1!",
+        "display_name": "Duplicate User",
+        "role": "CUSTOMER",
+    }
+    resp1 = await client.post("/auth/register", json=payload)
+    assert resp1.status_code == 201
+    
+    resp2 = await client.post("/auth/register", json=payload)
+    assert resp2.status_code == 409
+
+@pytest.mark.asyncio
+async def test_login_wrong_password(client: AsyncClient, customer_token: str) -> None:
+    resp = await client.post("/auth/login", json={
+        "email": "customer@test.com",
+        "password": "WrongPassword!",
+    })
+    assert resp.status_code == 401

@@ -1,11 +1,11 @@
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useRouter } from "expo-router"; // Added
+import { useRouter } from "expo-router";
 import type { Booking, BookingStatus, ServiceType } from "@mysitter/types";
 import {
   useBookings,
   useCancelBooking,
   useConfirmBooking,
-  useCompleteBooking, // Added
+  useCompleteBooking,
 } from "../../hooks/useBookings";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -34,11 +34,11 @@ const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
 
 export default function BookingsTab() {
   const { user } = useAuth();
-  const router = useRouter(); // Added
+  const router = useRouter();
   const { data, isLoading, refetch } = useBookings();
   const confirm = useConfirmBooking();
   const cancel = useCancelBooking();
-  const complete = useCompleteBooking(); // Added
+  const complete = useCompleteBooking();
 
   const bookings = data?.items ?? [];
 
@@ -102,11 +102,11 @@ export default function BookingsTab() {
         renderItem={({ item }) => (
           <BookingCard
             booking={item}
-            isProvider={user?.role === "PROVIDER"}
+            userRole={user?.role}
             onConfirm={handleConfirm}
             onCancel={handleCancel}
-            onComplete={handleComplete} // Added
-            onLeaveReview={handleLeaveReview} // Added
+            onComplete={handleComplete}
+            onLeaveReview={handleLeaveReview}
           />
         )}
       />
@@ -118,16 +118,16 @@ export default function BookingsTab() {
 
 interface BookingCardProps {
   booking: Booking;
-  isProvider: boolean;
+  userRole: "PROVIDER" | "CUSTOMER" | "ADMIN" | undefined;
   onConfirm: (b: Booking) => void;
   onCancel: (b: Booking) => void;
-  onComplete: (b: Booking) => void; // Added
-  onLeaveReview: (b: Booking) => void; // Added
+  onComplete: (b: Booking) => void;
+  onLeaveReview: (b: Booking) => void;
 }
 
 function BookingCard({
   booking,
-  isProvider,
+  userRole,
   onConfirm,
   onCancel,
   onComplete,
@@ -135,10 +135,11 @@ function BookingCard({
 }: BookingCardProps) {
   const start = new Date(booking.start_at);
   const end = new Date(booking.end_at);
+  const isProvider = userRole === "PROVIDER";
   const canConfirm = isProvider && booking.status === "PENDING";
   const canCancel = booking.status === "PENDING" || booking.status === "CONFIRMED";
   const canComplete = isProvider && booking.status === "CONFIRMED";
-  const canReview = booking.status === "COMPLETED";
+  const canReview = booking.status === "COMPLETED" && !isProvider;
 
   return (
     <View style={styles.card}>

@@ -14,6 +14,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
 from app.main import app
+from app.models.user import User
 
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -62,8 +63,8 @@ async def client(db):
 
 
 @pytest_asyncio.fixture
-async def provider_token(client: AsyncClient) -> str:
-    """Register a provider and return its access token."""
+async def provider_user(client: AsyncClient) -> dict:
+    """Register a provider, then fetch their ProviderProfile, and return a combined dict."""
     resp = await client.post("/auth/register", json={
         "email": "provider@test.com",
         "password": "Test1234!",
@@ -71,7 +72,26 @@ async def provider_token(client: AsyncClient) -> str:
         "role": "PROVIDER",
     })
     assert resp.status_code == 201, resp.text
-    return resp.json()["access_token"]
+    token = resp.json()["access_token"]
+
+    profile_resp = await client.get(
+        "/providers/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert profile_resp.status_code == 200, profile_resp.text
+
+    return {
+        "access_token": token,
+        "user": {
+            "provider_profile": profile_resp.json(),
+        },
+    }
+
+
+@pytest_asyncio.fixture
+async def provider_token(provider_user: dict) -> str:
+    """Return the access token from the provider_user fixture."""
+    return provider_user["access_token"]
 
 
 @pytest_asyncio.fixture

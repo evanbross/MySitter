@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -17,12 +17,17 @@ export default function BillingCheckoutPage() {
   const tier = searchParams.get("tier") ?? "";
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Guard against React StrictMode double-invocation and back-navigation re-mounts
+  // creating duplicate Stripe PaymentIntents.
+  const subscribeCalled = useRef(false);
 
   useEffect(() => {
     if (!tier) {
       navigate("/billing");
       return;
     }
+    if (subscribeCalled.current) return;
+    subscribeCalled.current = true;
     apiClient.billing
       .subscribe(tier)
       .then((res) => setClientSecret(res.client_secret))

@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 import type { ProviderProfile } from "@mysitter/types";
 
-export function useMyProviderProfile() {
+export function useMyProviderProfile(enabled = true) {
   return useQuery<ProviderProfile>({
     queryKey: ["providers", "me"],
     queryFn: () => apiClient.providers.getMyProfile(),
     retry: false,
+    enabled,
   });
 }
 

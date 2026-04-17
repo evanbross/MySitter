@@ -5,8 +5,8 @@ import {
   useBookings,
   useConfirmBooking,
   useCancelBooking,
-  useCompleteBooking, // Added
-  useCreateReview, // Added
+  useCompleteBooking,
+  useCreateReview,
 } from "@/hooks/useBookings";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -23,10 +23,9 @@ export default function BookingsPage() {
   const { data, isLoading } = useBookings();
   const confirmBooking = useConfirmBooking();
   const cancelBooking = useCancelBooking();
-  const completeBooking = useCompleteBooking(); // Added
-  const createReview = useCreateReview(); // Added
+  const completeBooking = useCompleteBooking();
+  const createReview = useCreateReview();
 
-  // Added local state for review modal
   const [reviewTarget, setReviewTarget] = useState<{
     bookingId: string;
   } | null>(null);
@@ -39,8 +38,8 @@ export default function BookingsPage() {
   const isUpdating =
     confirmBooking.isPending ||
     cancelBooking.isPending ||
-    completeBooking.isPending || // Added
-    createReview.isPending; // Added
+    completeBooking.isPending ||
+    createReview.isPending;
 
   return (
     <div
@@ -85,15 +84,14 @@ export default function BookingsPage() {
           isProvider={isProvider}
           onConfirm={() => confirmBooking.mutate(booking.id)}
           onCancel={() => cancelBooking.mutate(booking.id)}
-          onComplete={() => completeBooking.mutate(booking.id)} // Added
+          onComplete={() => completeBooking.mutate(booking.id)}
           onLeaveReview={() =>
             setReviewTarget({ bookingId: booking.id })
-          } // Added
+          }
           isUpdating={isUpdating}
         />
       ))}
 
-      {/* Review Modal */}
       {reviewTarget && (
         <div
           style={{
@@ -227,16 +225,16 @@ function BookingCard({
   isProvider,
   onConfirm,
   onCancel,
-  onComplete, // Added
-  onLeaveReview, // Added
+  onComplete,
+  onLeaveReview,
   isUpdating,
 }: {
   booking: Booking;
   isProvider: boolean;
   onConfirm: () => void;
   onCancel: () => void;
-  onComplete: () => void; // Added
-  onLeaveReview: () => void; // Added
+  onComplete: () => void;
+  onLeaveReview: () => void;
   isUpdating: boolean;
 }) {
   const colors = STATUS_STYLE[booking.status];
@@ -350,7 +348,7 @@ function BookingCard({
         </div>
       )}
 
-      {booking.status === "COMPLETED" && (
+      {booking.status === "COMPLETED" && !isProvider && (
         <div style={{ marginTop: 12 }}>
           <button
             onClick={onLeaveReview}

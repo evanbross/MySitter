@@ -95,16 +95,13 @@ async def send_message(
     service = MessagingService(db)
     message = await service.send_message(current_user, conversation_id, body.body)
 
-    # Schedule a deferred email if recipient is offline. The task re-checks
-    # read_at before sending, so it is a no-op if the user reads the message
-    # within the 5-minute window.
     recipient_id = await service.get_recipient_id(current_user, conversation_id)
     if recipient_id and not await redis.exists(f"ws:online:{recipient_id}"):
-        from app.workers.tasks import notify_new_message, send_offline_message_email
+        from app.workers.tasks import notify_new_message, notify_message_email
 
         notify_new_message.delay(str(message.id))
-        send_offline_message_email.apply_async(
-            args=[str(message.id)],
+        notify_message_email.apply_async(
+            args=[str(conversation_id), str(recipient_id), current_user.display_name],
             countdown=300,  # 5 minutes
         )
 

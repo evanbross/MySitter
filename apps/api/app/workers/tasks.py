@@ -9,16 +9,23 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import requests
+import resend
 from dateutil.rrule import rrulestr
 from sqlalchemy import create_engine, select, func
 from sqlalchemy.orm import Session as SyncSession
 
 from app.core.config import settings
-from app.core.email import email_renderer
 from app.models.booking import Booking, BookingOccurrence, BookingStatus
 from app.models.messaging import Conversation, Message
 from app.models.user import User
 from app.workers.celery_app import celery_app
+from app.workers.email_templates import (
+    BookingCancelledTemplate,
+    BookingCompletedTemplate,
+    BookingConfirmedTemplate,
+    BookingRequestTemplate,
+    SubscriptionRenewalTemplate,
+)
 
 # ─── Booking tasks ────────────────────────────────────────────────────────────
 
@@ -167,18 +174,42 @@ def notify_new_message(self, message_id: str) -> None:
         raise self.retry(exc=exc)
 
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
-def send_offline_message_email(self, message_id: str) -> None:
+@celery_app.task
+def notify_message_email(conversation_id: str, recipient_user_id: str, sender_name: str) -> None:
     """
-    Send an email notification for an unread message.
-    Called with countdown=300 (5 minutes) from the send_message endpoint.
-    The task checks read_at just before sending — if the recipient has
-    since opened the app and read the message, it skips the email.
+    Fires 5 minutes after a message is sent. Checks if the recipient still has
+    unread messages in the conversation; if so, sends an email nudge.
     """
-    try:
-        _send_offline_message_email(message_id)
-    except Exception as exc:
-        raise self.retry(exc=exc)
+    recipient_uuid = uuid.UUID(recipient_user_id)
+    conversation_uuid = uuid.UUID(conversation_id)
+
+    engine = create_engine(settings.database_sync_url)
+    with SyncSession(engine) as session:
+        unread_count = session.scalar(
+            select(func.count())
+            .select_from(Message)
+            .where(
+                Message.conversation_id == conversation_uuid,
+                Message.sender_id != recipient_uuid,
+                Message.read_at.is_(None),
+            )
+        ) or 0
+
+        if unread_count == 0:
+            return
+
+        recipient = session.scalar(select(User).where(User.id == recipient_uuid))
+        if not recipient or not settings.resend_api_key:
+            return
+
+        resend.api_key = settings.resend_api_key
+        resend.Emails.send({
+            "from": settings.email_from,
+            "to": [recipient.email],
+            "subject": f"You have a new message from {sender_name}",
+            "html": f"<p>You have a new message from {sender_name}.</p>",
+        })
+    engine.dispose()
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
@@ -198,11 +229,11 @@ def send_admin_notification(
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def send_subscription_renewal_email(
-    self, user_id: str, tier: str, period_end_iso: str
+    self, user_id: str, tier: str, period_end_iso: str, portal_url: str
 ) -> None:
     """Send a subscription activated/renewed confirmation email."""
     try:
-        _send_subscription_renewal_email(user_id, tier, period_end_iso)
+        _send_subscription_renewal_email(user_id, tier, period_end_iso, portal_url)
     except Exception as exc:
         raise self.retry(exc=exc)
 
@@ -315,25 +346,25 @@ def _issue_referral_reward(referral_id: str) -> None:
     engine.dispose()
 
 
-def _send_subscription_renewal_email(user_id: str, tier: str, period_end_iso: str) -> None:
+def _send_subscription_renewal_email(user_id: str, tier: str, period_end_iso: str, portal_url: str) -> None:
     engine = create_engine(settings.database_sync_url)
     with SyncSession(engine) as session:
         user = session.scalar(select(User).where(User.id == uuid.UUID(user_id)))
         if not user or not settings.resend_api_key:
             return
 
-        import resend
         resend.api_key = settings.resend_api_key
+        template = SubscriptionRenewalTemplate(
+            user_name=user.display_name,
+            tier=tier,
+            renewal_date=datetime.fromisoformat(period_end_iso).strftime("%B %d, %Y"),
+            portal_url=portal_url,
+        )
         resend.Emails.send({
             "from": settings.email_from,
             "to": [user.email],
-            "subject": f"Your MySitter {tier} subscription is active",
-            "html": email_renderer.render(
-                "subscription_renewal.html",
-                user_name=user.display_name,
-                tier=tier,
-                period_end=datetime.fromisoformat(period_end_iso).strftime("%B %d, %Y"),
-            ),
+            "subject": template.subject(),
+            "html": template.html_body(),
         })
     engine.dispose()
 
@@ -346,7 +377,6 @@ def _send_admin_notification(user_id: str, subject: str, message: str, channels:
             return
 
         if "email" in channels and settings.resend_api_key:
-            import resend
             resend.api_key = settings.resend_api_key
             resend.Emails.send({
                 "from": settings.email_from,
@@ -373,54 +403,10 @@ def _send_admin_notification(user_id: str, subject: str, message: str, channels:
     engine.dispose()
 
 
-def _send_offline_message_email(message_id: str) -> None:
-    """Load the message and send an email notification to the recipient if still unread."""
-    engine = create_engine(settings.database_sync_url)
-
-    with SyncSession(engine) as session:
-        msg = session.scalar(
-            select(Message).where(Message.id == uuid.UUID(message_id))
-        )
-        if not msg or msg.read_at is not None:
-            return
-
-        conv = session.scalar(
-            select(Conversation).where(Conversation.id == msg.conversation_id)
-        )
-        if not conv:
-            return
-
-        recipient_id = (
-            conv.provider_id if msg.sender_id == conv.customer_id else conv.customer_id
-        )
-        recipient = session.scalar(select(User).where(User.id == recipient_id))
-        sender = session.scalar(select(User).where(User.id == msg.sender_id))
-
-        if not recipient or not sender or not settings.resend_api_key:
-            return
-
-        import resend
-        resend.api_key = settings.resend_api_key
-        resend.Emails.send({
-            "from": settings.email_from,
-            "to": [recipient.email],
-            "subject": f"You have an unread message from {sender.display_name}",
-            "html": email_renderer.render(
-                "message_notification.html",
-                sender_name=sender.display_name,
-                message_body=msg.body,
-            ),
-        })
-
-    engine.dispose()
-
-
 def _notify_booking(booking_id: str, event: str) -> None:
     """
     Load the booking and dispatch notifications via Resend (email),
     Twilio (SMS), and Expo Push.
-
-    This runs inside a Celery worker process using a synchronous DB session.
     """
     engine = create_engine(settings.database_sync_url)
 
@@ -432,10 +418,7 @@ def _notify_booking(booking_id: str, event: str) -> None:
             return
 
         customer = session.scalar(select(User).where(User.id == booking.customer_id))
-        # booking.provider_id references provider_profiles.id, not users.id directly.
-        # Load the provider's user via ProviderProfile.
         from app.models.provider import ProviderProfile
-
         profile = session.scalar(
             select(ProviderProfile).where(ProviderProfile.id == booking.provider_id)
         )
@@ -450,61 +433,70 @@ def _notify_booking(booking_id: str, event: str) -> None:
             event, customer, provider, booking
         )
 
-        # Email — send to relevant party based on event
+        # Email
         if settings.resend_api_key:
-            import resend
-
-            booking_start = booking.start_at.strftime("%A, %B %d at %I:%M %p").replace(
-                " 0", " "
-            )
             resend.api_key = settings.resend_api_key
-            if event in ("PENDING",):
-                # Provider receives new request
+            if event == "PENDING":
+                template = BookingRequestTemplate(
+                    provider_name=provider.display_name,
+                    customer_name=customer.display_name,
+                    start_at=booking.start_at.strftime("%A, %B %d at %I:%M %p"),
+                    end_at=booking.end_at.strftime("%I:%M %p"),
+                    service_type=booking.service_type.value,
+                )
                 resend.Emails.send({
                     "from": settings.email_from,
                     "to": [provider.email],
-                    "subject": subject,
-                    "html": email_renderer.render(
-                        "booking_notification.html",
-                        user_name=provider.display_name,
-                        message=provider_body,
-                        event=event,
-                        booking_start=booking_start,
-                        service_type=booking.service_type.value,
-                    ),
+                    "subject": template.subject(),
+                    "html": template.html_body(),
                 })
-            else:
-                # Customer receives status update
+            elif event == "CONFIRMED":
+                template = BookingConfirmedTemplate(
+                    customer_name=customer.display_name,
+                    provider_name=provider.display_name,
+                    start_at=booking.start_at.strftime("%A, %B %d at %I:%M %p"),
+                    end_at=booking.end_at.strftime("%I:%M %p"),
+                )
                 resend.Emails.send({
                     "from": settings.email_from,
                     "to": [customer.email],
-                    "subject": subject,
-                    "html": email_renderer.render(
-                        "booking_notification.html",
-                        user_name=customer.display_name,
-                        message=customer_body,
-                        event=event,
-                        booking_start=booking_start,
-                        service_type=booking.service_type.value,
-                    ),
+                    "subject": template.subject(),
+                    "html": template.html_body(),
+                })
+            elif event == "CANCELLED":
+                template = BookingCancelledTemplate(
+                    recipient_name=customer.display_name,
+                    booking_start_at=booking.start_at.strftime("%A, %B %d at %I:%M %p"),
+                )
+                resend.Emails.send({
+                    "from": settings.email_from,
+                    "to": [customer.email],
+                    "subject": template.subject(),
+                    "html": template.html_body(),
+                })
+            elif event == "COMPLETED":
+                template = BookingCompletedTemplate(
+                    customer_name=customer.display_name,
+                    provider_name=provider.display_name,
+                    review_link=f"{settings.web_base_url}/bookings/{booking.id}",
+                )
+                resend.Emails.send({
+                    "from": settings.email_from,
+                    "to": [customer.email],
+                    "subject": template.subject(),
+                    "html": template.html_body(),
                 })
 
-        # SMS — send to relevant party if they have a phone number
+        # SMS
         if settings.twilio_account_sid and settings.twilio_auth_token:
             from twilio.rest import Client as TwilioClient
-
             twilio = TwilioClient(settings.twilio_account_sid, settings.twilio_auth_token)
             recipient = provider if event == "PENDING" else customer
             sms_body = provider_body if event == "PENDING" else customer_body
-
             if recipient.phone:
-                twilio.messages.create(
-                    body=sms_body,
-                    from_=settings.twilio_from_number,
-                    to=recipient.phone,
-                )
+                twilio.messages.create(body=sms_body, from_=settings.twilio_from_number, to=recipient.phone)
 
-        # Push — Expo push notification
+        # Push
         recipient = provider if event == "PENDING" else customer
         push_body = provider_body if event == "PENDING" else customer_body
         if recipient.expo_push_token:
@@ -631,14 +623,12 @@ def _send_welcome(user_id: str) -> None:
         if not user:
             return
 
-        import resend
-
         resend.api_key = settings.resend_api_key
         resend.Emails.send({
             "from": settings.email_from,
             "to": [user.email],
             "subject": f"Welcome to mysitter, {user.display_name}!",
-            "html": email_renderer.render("welcome.html", user_name=user.display_name),
+            "html": f"<p>Hi {user.display_name}, welcome to MySitter!</p>",
         })
 
     engine.dispose()

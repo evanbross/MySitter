@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db, get_redis
+from app.core.limiter import limiter
 from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
@@ -22,7 +23,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 async def register(
+    request: Request,
     body: RegisterRequest,
     db: AsyncSession = Depends(get_db),
     redis: aioredis.Redis = Depends(get_redis),
@@ -33,7 +36,9 @@ async def register(
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def login(
+    request: Request,
     body: LoginRequest,
     response: Response,
     db: AsyncSession = Depends(get_db),
@@ -123,7 +128,9 @@ async def totp_setup(
 
 
 @router.post("/totp/verify")
+@limiter.limit("10/minute")
 async def totp_verify(
+    request: Request,
     body: TotpVerifyRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
