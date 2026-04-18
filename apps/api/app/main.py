@@ -53,6 +53,6 @@ app.include_router(uploads.router)
 app.include_router(referrals.router)
 
 
-@app.get("/health", tags=["health"])
-async def health() -> dict:
+@app.get("/health", include_in_schema=False)
+async def health() -> dict[str, str]:
     return {"status": "ok"}

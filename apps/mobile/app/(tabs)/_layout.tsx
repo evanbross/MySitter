@@ -1,7 +1,10 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../../hooks/useAuth";
 
 export default function TabLayout() {
+  const { user } = useAuth();
+
   return (
     <Tabs screenOptions={{ tabBarActiveTintColor: "#1a1a2e" }}>
       <Tabs.Screen
@@ -16,6 +19,14 @@ export default function TabLayout() {
         options={{
           title: "Bookings",
           tabBarIcon: ({ color }) => <Ionicons name="calendar" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: "Calendar",
+          tabBarIcon: ({ color }) => <Ionicons name="calendar-outline" size={24} color={color} />,
+          href: user?.role === "PROVIDER" ? "/(tabs)/calendar" : null,
         }}
       />
       <Tabs.Screen

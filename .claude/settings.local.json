@@ -28,7 +28,16 @@
       "Bash(ls \"F:/Evan-F/Projects/MySitter/\"*.md)",
       "Bash(python3:*)",
       "Bash(npx tsc:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(git -C \"F:/Evan-F/Projects/MySitter/.dev-standards\" status)",
+      "Read(//f/Evan-F/Projects/**)",
+      "Bash(git -C \"F:/Evan-F/Projects/MySitter/.dev-standards\" add CLAUDE.md settings.template.json GEMINI_CODING_STANDARDS.md)",
+      "Bash(git -C F:/Evan-F/Projects/MySitter/.dev-standards commit -m ' *)",
+      "Bash(git *)",
+      "Bash(rm \"C:/Users/evan/.claude/CLAUDE.md\")",
+      "Bash(cmd.exe /c 'mklink \"C:\\\\Users\\\\evan\\\\.claude\\\\CLAUDE.md\" \"F:\\\\Evan-F\\\\Projects\\\\Dev-Standards\\\\CLAUDE.md\"')",
+      "Bash(cmd.exe *)",
+      "Bash(powershell.exe *)"
     ]
   }
 }

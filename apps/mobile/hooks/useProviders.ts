@@ -1,6 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
-import type { Availability, PaginatedResponse, ProviderProfile, ProviderSearchResult } from "@mysitter/types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type {
+  Availability,
+  AvailabilityCreate,
+  PaginatedResponse,
+  ProviderProfile,
+  ProviderSearchResult,
+} from "@mysitter/types";
 import { apiClient } from "../lib/apiClient";
+import { useAuth } from "./useAuth";
 
 export function useProviderSearch(params: {
   lat: number | null;
@@ -31,10 +38,43 @@ export function useProviderProfile(providerId: string | undefined) {
   });
 }
 
+export function useMyProviderProfile() {
+  const { user } = useAuth();
+  return useQuery<ProviderProfile>({
+    queryKey: ["providers", "me"],
+    queryFn: () => apiClient.providers.getMyProfile(),
+    enabled: user?.role === "PROVIDER",
+  });
+}
+
 export function useProviderAvailability(providerId: string | undefined) {
   return useQuery<Availability[]>({
-    queryKey: ["providers", providerId, "availability"],
+    queryKey: ["availability", providerId],
     queryFn: () => apiClient.providers.getAvailability(providerId!),
     enabled: !!providerId,
+  });
+}
+
+// useCreateAvailability — POST a new availability block
+export function useCreateAvailability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: AvailabilityCreate) =>
+      apiClient.providers.createAvailability(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["availability"] });
+    },
+  });
+}
+
+// useDeleteAvailability — DELETE an availability block
+export function useDeleteAvailability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (availabilityId: string) =>
+      apiClient.providers.deleteAvailability(availabilityId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["availability"] });
+    },
   });
 }

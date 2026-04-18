@@ -15,7 +15,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
-    "test": "cd apps/api && .venv/Scripts/python -m pytest",
+    "test": "cd apps/api && .venv/bin/python -m pytest",
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {

@@ -1,0 +1,44 @@
+default:
+  image: python:3.13-slim
+
+stages:
+  - test
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
+  DATABASE_URL: "postgresql+asyncpg://mysitter:mysitter@postgres/mysitter_test"
+  SECRET_KEY: "ci-test-secret-key-not-for-production"
+  REDIS_URL: "redis://redis:6379/0"
+  RESEND_API_KEY: ""
+  STRIPE_SECRET_KEY: ""
+  TWILIO_ACCOUNT_SID: ""
+  TWILIO_AUTH_TOKEN: ""
+
+cache:
+  paths:
+    - .pip-cache/
+
+api-tests:
+  stage: test
+  services:
+    - name: postgis/postgis:16-3.4
+      alias: postgres
+      variables:
+        POSTGRES_USER: mysitter
+        POSTGRES_PASSWORD: mysitter
+        POSTGRES_DB: mysitter_test
+    - name: redis:7-alpine
+      alias: redis
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq libpq-dev gcc gdal-bin
+    - pip install virtualenv
+    - virtualenv apps/api/.venv
+    - apps/api/.venv/bin/pip install --upgrade pip
+    - apps/api/.venv/bin/pip install -r apps/api/requirements.txt -r apps/api/requirements-dev.txt
+  script:
+    - apps/api/.venv/bin/alembic -c apps/api/alembic.ini upgrade head
+    - apps/api/.venv/bin/pytest apps/api/tests --tb=short -q
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'

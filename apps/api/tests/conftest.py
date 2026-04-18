@@ -6,6 +6,7 @@ sufficient for unit/integration tests that don't use geographic queries.
 For geo-query tests, override the `db_url` fixture to point at a test
 Postgres instance.
 """
+import os
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -17,15 +18,16 @@ from app.main import app
 from app.models.user import User
 
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+_DB_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+_CONNECT_ARGS = {"check_same_thread": False} if _DB_URL.startswith("sqlite") else {}
 
 
 @pytest_asyncio.fixture(scope="function")
 async def db_engine():
     engine = create_async_engine(
-        TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
+        _DB_URL,
+        connect_args=_CONNECT_ARGS,
+        poolclass=StaticPool if _DB_URL.startswith("sqlite") else None,
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
