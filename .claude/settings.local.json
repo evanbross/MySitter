@@ -37,7 +37,9 @@
       "Bash(rm \"C:/Users/evan/.claude/CLAUDE.md\")",
       "Bash(cmd.exe /c 'mklink \"C:\\\\Users\\\\evan\\\\.claude\\\\CLAUDE.md\" \"F:\\\\Evan-F\\\\Projects\\\\Dev-Standards\\\\CLAUDE.md\"')",
       "Bash(cmd.exe *)",
-      "Bash(powershell.exe *)"
+      "Bash(powershell.exe *)",
+      "Bash(xargs grep *)",
+      "Bash(grep -r \"def.*pass$\\\\|async def.*pass$\" /f/Evan-F/Projects/MySitter/apps/api/app/services/ --include=\"*.py\")"
     ]
   }
 }

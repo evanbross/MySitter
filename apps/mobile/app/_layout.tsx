@@ -5,9 +5,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
+import * as Sentry from "@sentry/react-native";
 
 import { apiClient } from "../lib/apiClient";
 import { useAuth } from "../hooks/useAuth";
+
+if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+    environment: process.env.EXPO_PUBLIC_ENV ?? "development",
+    tracesSampleRate: 0.2,
+  });
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {

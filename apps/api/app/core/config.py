@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     app_url: str = "https://mysitter.com"
     debug: bool = False
     secret_key: str
+    sentry_dsn: str | None = None
+    environment: str = "development"
 
     # ─── Database ─────────────────────────────────────────────────────────────
     database_url: str          # postgresql+asyncpg:// for async SQLAlchemy

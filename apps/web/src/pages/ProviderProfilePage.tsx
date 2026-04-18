@@ -122,6 +122,7 @@ export default function ProviderProfilePage() {
 
   if (isLoading) return <div style={{ padding: 24 }}>Loading…</div>;
   if (!profile) return <div style={{ padding: 24 }}>Provider not found.</div>;
+  const isOwnProviderProfile = user?.role === "PROVIDER" && user.id === profile.user_id;
 
   const calendarEvents: EventInput[] = (availability ?? []).map((a) => {
     const base: EventInput = {
@@ -277,24 +278,26 @@ export default function ProviderProfilePage() {
           </div>
         </div>
 
-        <div style={{ flexShrink: 0 }}>
-          <button
-            onClick={() => setShowModal(true)}
-            disabled={!profile.is_active}
-            style={{
-              background: profile.is_active ? "#4f46e5" : "#9ca3af",
-              color: "white",
-              border: "none",
-              borderRadius: 8,
-              padding: "12px 24px",
-              fontSize: 16,
-              fontWeight: 600,
-              cursor: profile.is_active ? "pointer" : "not-allowed",
-            }}
-          >
-            {profile.is_active ? "Book this sitter" : "Not available"}
-          </button>
-        </div>
+        {!isOwnProviderProfile && (
+          <div style={{ flexShrink: 0 }}>
+            <button
+              onClick={() => setShowModal(true)}
+              disabled={!profile.is_active}
+              style={{
+                background: profile.is_active ? "#4f46e5" : "#9ca3af",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                padding: "12px 24px",
+                fontSize: 16,
+                fontWeight: 600,
+                cursor: profile.is_active ? "pointer" : "not-allowed",
+              }}
+            >
+              {profile.is_active ? "Book this sitter" : "Not available"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Bio ─────────────────────────────────────────────────────────── */}
@@ -386,7 +389,7 @@ export default function ProviderProfilePage() {
       )}
 
       {/* ── Booking modal ────────────────────────────────────────────────── */}
-      {showModal && (
+      {showModal && !isOwnProviderProfile && (
         <div
           style={{
             position: "fixed",

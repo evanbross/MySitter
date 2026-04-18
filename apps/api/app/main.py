@@ -6,9 +6,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.celery import CeleryIntegration
+
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.routers import admin, auth, billing, bookings, messages, providers, referrals, reviews, seo, uploads, users, websocket, analytics
+
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        integrations=[FastApiIntegration(), CeleryIntegration()],
+        traces_sample_rate=0.2,
+        environment=settings.environment,
+    )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:

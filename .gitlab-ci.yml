@@ -42,3 +42,21 @@ api-tests:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
+
+e2e-tests:
+  stage: test
+  image: mcr.microsoft.com/playwright:v1.44.0-jammy
+  before_script:
+    - cd apps/web && npm ci
+  script:
+    - cd apps/web && npx playwright test
+  artifacts:
+    when: on_failure
+    paths:
+      - apps/web/playwright-report/
+    expire_in: 7 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
