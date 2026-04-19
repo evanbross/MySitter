@@ -36,7 +36,14 @@ root.render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Sentry.ErrorBoundary fallback={<p>Something went wrong.</p>}>
+        <Sentry.ErrorBoundary fallback={({ error }) => (
+          <div style={{ padding: "2rem", fontFamily: "monospace" }}>
+            <h2>Something went wrong</h2>
+            <pre style={{ color: "red", whiteSpace: "pre-wrap" }}>
+              {error instanceof Error ? `${error.name}: ${error.message}\n\n${error.stack}` : String(error)}
+            </pre>
+          </div>
+        )}>
           <App />
         </Sentry.ErrorBoundary>
       </BrowserRouter>

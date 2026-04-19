@@ -44,8 +44,8 @@ def upgrade() -> None:
     
     # We changed the review constraints in Phase 3.
     # We drop the old unique constraint and add the new ones
-    op.drop_constraint('uq_review_booking', 'reviews', type_='unique')
-    op.drop_constraint('reviews_booking_id_key', 'reviews', type_='unique')
+    op.execute("ALTER TABLE reviews DROP CONSTRAINT IF EXISTS uq_review_booking")
+    op.execute("ALTER TABLE reviews DROP CONSTRAINT IF EXISTS reviews_booking_id_key")
     
     op.create_unique_constraint('uq_review_per_booking_reviewer', 'reviews', ['booking_id', 'reviewer_id'])
     
@@ -59,5 +59,4 @@ def downgrade() -> None:
     op.execute("ALTER TABLE reviews DROP CONSTRAINT chk_review_rating_range")
     op.drop_constraint('uq_review_per_booking_reviewer', 'reviews', type_='unique')
     op.create_unique_constraint('uq_review_booking', 'reviews', ['booking_id'])
-    op.create_unique_constraint('reviews_booking_id_key', 'reviews', ['booking_id'])
     op.drop_index(op.f('ix_bookings_status'), table_name='bookings')
