@@ -169,6 +169,12 @@ export default function ProfileTab() {
             {new Date(user.created_at).toLocaleDateString(undefined, { month: "long", year: "numeric" })}
           </Text>
         </View>
+        {user.role === "CUSTOMER" && (
+          <TouchableOpacity style={styles.infoRow} onPress={() => router.push("/customer-profile")}>
+            <Text style={styles.infoLabel}>My Pets & Home</Text>
+            <Text style={[styles.infoValue, { color: "#6366f1" }]}>Edit →</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {user.role === "PROVIDER" && (
