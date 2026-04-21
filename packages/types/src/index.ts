@@ -105,6 +105,32 @@ export interface ProviderProfileUpdate {
   location?: GeoPoint;
 }
 
+// ─── Customer Profile ────────────────────────────────────────────────────────
+
+export type PetType = "DOG" | "CAT" | "BIRD" | "FISH" | "RABBIT" | "REPTILE" | "OTHER";
+
+export interface CustomerProfile {
+  id: string;
+  user_id: string;
+  home_description: string | null;
+  home_type: string | null;
+  has_yard: boolean;
+  pet_names: string[];
+  pet_types: PetType[];
+  pet_description: string | null;
+  special_instructions: string | null;
+}
+
+export interface CustomerProfileUpdate {
+  home_description?: string | null;
+  home_type?: string | null;
+  has_yard?: boolean | null;
+  pet_names?: string[] | null;
+  pet_types?: PetType[] | null;
+  pet_description?: string | null;
+  special_instructions?: string | null;
+}
+
 // ─── Availability ─────────────────────────────────────────────────────────────
 
 export interface Availability {

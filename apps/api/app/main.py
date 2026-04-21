@@ -12,7 +12,22 @@ from sentry_sdk.integrations.celery import CeleryIntegration
 
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.routers import admin, auth, billing, bookings, messages, providers, referrals, reviews, seo, uploads, users, websocket, analytics
+from app.routers import (
+    admin,
+    analytics,
+    auth,
+    billing,
+    bookings,
+    customer_profiles,
+    messages,
+    providers,
+    referrals,
+    reviews,
+    seo,
+    uploads,
+    users,
+    websocket,
+)
 
 if settings.sentry_dsn:
     sentry_sdk.init(
@@ -64,6 +79,7 @@ app.include_router(analytics.router)
 app.include_router(seo.router)
 app.include_router(uploads.router)
 app.include_router(referrals.router)
+app.include_router(customer_profiles.router)
 
 
 @app.get("/health", include_in_schema=False)

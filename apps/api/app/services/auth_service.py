@@ -18,7 +18,6 @@ Passkey flow overview:
 """
 import uuid
 import re
-from typing import TYPE_CHECKING
 
 import pyotp
 import redis.asyncio as aioredis
@@ -28,7 +27,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.workers.tasks import send_welcome_email
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -36,6 +34,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.models.customer_profile import CustomerProfile
 from app.models.provider import ProviderProfile
 from app.models.user import PasskeyCredential, User, UserRole
 from app.schemas.auth import (
@@ -44,9 +43,7 @@ from app.schemas.auth import (
     TokenResponse,
     TotpSetupResponse,
 )
-
-if TYPE_CHECKING:
-    pass
+from app.workers.tasks import send_welcome_email
 
 _REFRESH_COOKIE = "refresh_token"
 _COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
@@ -86,13 +83,13 @@ class AuthService:
             role=role,
         )
         self._db.add(user)
-        await self._db.commit()
-        await self._db.refresh(user)
+        await self._db.flush()
 
         if user.role == UserRole.PROVIDER:
             stripe_customer_id: str | None = None
-            if settings.stripe_secret_key:
-                stripe.api_key = settings.stripe_secret_key
+            _stripe_key = settings.stripe_secret_key
+            if _stripe_key and not _stripe_key.endswith("..."):
+                stripe.api_key = _stripe_key
                 customer = stripe.Customer.create(
                     email=user.email,
                     name=user.display_name,
@@ -113,7 +110,18 @@ class AuthService:
             # Auto-generate slug: slugify display_name + first 8 chars of profile UUID
             base = re.sub(r"[^a-z0-9]+", "-", user.display_name.lower()).strip("-")
             profile.slug = f"{base}-{str(profile.id)[:8]}"
-            await self._db.commit()
+
+        if user.role == UserRole.CUSTOMER:
+            profile = CustomerProfile(
+                user_id=user.id,
+                has_yard=False,
+                pet_names=[],
+                pet_types=[],
+            )
+            self._db.add(profile)
+
+        await self._db.commit()
+        await self._db.refresh(user)
 
         send_welcome_email.delay(str(user.id))
         return TokenResponse(access_token=create_access_token(user.id))

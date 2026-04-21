@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     # ─── App ──────────────────────────────────────────────────────────────────
     app_name: str = "mysitter API"
     app_url: str = "https://mysitter.com"
+    web_base_url: str = "http://localhost:5173"
     debug: bool = False
     secret_key: str
     sentry_dsn: str | None = None

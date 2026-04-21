@@ -39,7 +39,10 @@
       "Bash(cmd.exe *)",
       "Bash(powershell.exe *)",
       "Bash(xargs grep *)",
-      "Bash(grep -r \"def.*pass$\\\\|async def.*pass$\" /f/Evan-F/Projects/MySitter/apps/api/app/services/ --include=\"*.py\")"
+      "Bash(grep -r \"def.*pass$\\\\|async def.*pass$\" /f/Evan-F/Projects/MySitter/apps/api/app/services/ --include=\"*.py\")",
+      "Bash(.venv/Scripts/pip show *)",
+      "Bash(.venv/Scripts/pip index *)",
+      "Bash(\"F:/Evan-F/Projects/MySitter/apps/api/.venv/Scripts/pip.exe\" install *)"
     ]
   }
 }

@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import * as Sentry from "@sentry/react";
 
 import App from "./App";
+import { Toaster } from "@/components/ui/toaster";
 import "./index.css";
 
 if (import.meta.env.VITE_SENTRY_DSN) {
@@ -46,6 +47,7 @@ root.render(
         )}>
           <App />
         </Sentry.ErrorBoundary>
+        <Toaster />
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

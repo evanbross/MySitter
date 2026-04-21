@@ -1,0 +1,181 @@
+<svg width="900" height="680" xmlns="http://www.w3.org/2000/svg" font-family="Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-rev" markerWidth="8" markerHeight="6" refX="1" refY="3" orient="auto">
+      <path d="M8,0 L8,6 L0,3 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="450" y="28" text-anchor="middle" font-size="17" font-weight="bold" fill="#0f172a">MySitter — Production Architecture</text>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- ROW 1: Clients                          -->
+  <!-- ═══════════════════════════════════════ -->
+
+  <!-- Browser -->
+  <rect x="28" y="45" width="155" height="65" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
+  <text x="106" y="70" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e40af">Browser</text>
+  <text x="106" y="88" text-anchor="middle" font-size="11" fill="#1e40af">mysitter.com</text>
+  <text x="106" y="103" text-anchor="middle" font-size="10" fill="#1e40af">React + Vite (CDN)</text>
+
+  <!-- iOS App -->
+  <rect x="198" y="45" width="140" height="65" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
+  <text x="268" y="70" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e40af">iOS App</text>
+  <text x="268" y="88" text-anchor="middle" font-size="11" fill="#1e40af">Expo / React Native</text>
+  <text x="268" y="103" text-anchor="middle" font-size="10" fill="#1e40af">App Store</text>
+
+  <!-- Android App -->
+  <rect x="352" y="45" width="140" height="65" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
+  <text x="422" y="70" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e40af">Android App</text>
+  <text x="422" y="88" text-anchor="middle" font-size="11" fill="#1e40af">Expo / React Native</text>
+  <text x="422" y="103" text-anchor="middle" font-size="10" fill="#1e40af">Play Store</text>
+
+  <!-- Admin Panel (separated to signal internal tool) -->
+  <rect x="717" y="45" width="155" height="65" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
+  <text x="795" y="70" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e40af">Admin Panel</text>
+  <text x="795" y="88" text-anchor="middle" font-size="11" fill="#1e40af">admin.mysitter.com</text>
+  <text x="795" y="103" text-anchor="middle" font-size="10" fill="#1e40af">React Admin</text>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- ROW 2: Cloudflare Edge                  -->
+  <!-- ═══════════════════════════════════════ -->
+
+  <rect x="20" y="150" width="860" height="55" rx="8" fill="#fff7ed" stroke="#f97316" stroke-width="2"/>
+  <text x="450" y="173" text-anchor="middle" font-size="13" font-weight="bold" fill="#c2410c">Cloudflare</text>
+  <text x="450" y="192" text-anchor="middle" font-size="11" fill="#c2410c">DNS · CDN · WAF · DDoS Protection · SSL/TLS Termination</text>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- ROW 3: DO Load Balancer                 -->
+  <!-- ═══════════════════════════════════════ -->
+
+  <rect x="305" y="250" width="290" height="50" rx="8" fill="#e0f2fe" stroke="#0284c7" stroke-width="2"/>
+  <text x="450" y="271" text-anchor="middle" font-size="13" font-weight="bold" fill="#0369a1">DO Load Balancer</text>
+  <text x="450" y="289" text-anchor="middle" font-size="11" fill="#0369a1">round-robin · health checks</text>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- DigitalOcean bounding box               -->
+  <!-- ═══════════════════════════════════════ -->
+
+  <rect x="20" y="315" width="860" height="220" rx="12" fill="#f8fafc" stroke="#0061ff" stroke-width="2" stroke-dasharray="8,4"/>
+  <rect x="20" y="315" width="135" height="22" rx="4" fill="#0061ff"/>
+  <text x="87" y="331" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">🌊 DigitalOcean</text>
+
+  <!-- Compute row -->
+
+  <!-- API Droplet 1 -->
+  <rect x="38" y="340" width="180" height="72" rx="8" fill="#ffedd5" stroke="#f97316" stroke-width="2"/>
+  <text x="128" y="362" text-anchor="middle" font-size="12" font-weight="bold" fill="#c2410c">API Droplet 1</text>
+  <text x="128" y="379" text-anchor="middle" font-size="11" fill="#c2410c">FastAPI + uvicorn</text>
+  <text x="128" y="395" text-anchor="middle" font-size="10" fill="#c2410c">2 GB RAM</text>
+
+  <!-- API Droplet 2 -->
+  <rect x="232" y="340" width="180" height="72" rx="8" fill="#ffedd5" stroke="#f97316" stroke-width="2"/>
+  <text x="322" y="362" text-anchor="middle" font-size="12" font-weight="bold" fill="#c2410c">API Droplet 2</text>
+  <text x="322" y="379" text-anchor="middle" font-size="11" fill="#c2410c">FastAPI + uvicorn</text>
+  <text x="322" y="395" text-anchor="middle" font-size="10" fill="#c2410c">2 GB RAM</text>
+
+  <!-- Celery Worker -->
+  <rect x="460" y="340" width="175" height="72" rx="8" fill="#fef9c3" stroke="#eab308" stroke-width="2"/>
+  <text x="547" y="362" text-anchor="middle" font-size="12" font-weight="bold" fill="#854d0e">Celery Worker</text>
+  <text x="547" y="379" text-anchor="middle" font-size="11" fill="#854d0e">async tasks</text>
+  <text x="547" y="395" text-anchor="middle" font-size="10" fill="#854d0e">email · SMS · push</text>
+
+  <!-- Celery Beat -->
+  <rect x="649" y="340" width="175" height="72" rx="8" fill="#fef9c3" stroke="#eab308" stroke-width="2"/>
+  <text x="736" y="362" text-anchor="middle" font-size="12" font-weight="bold" fill="#854d0e">Celery Beat</text>
+  <text x="736" y="379" text-anchor="middle" font-size="11" fill="#854d0e">scheduler</text>
+  <text x="736" y="395" text-anchor="middle" font-size="10" fill="#854d0e">cron-style tasks</text>
+
+  <!-- Data row -->
+
+  <!-- Managed PostgreSQL -->
+  <rect x="38" y="428" width="260" height="88" rx="8" fill="#ede9fe" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="168" y="450" text-anchor="middle" font-size="12" font-weight="bold" fill="#6d28d9">Managed PostgreSQL 16</text>
+  <text x="168" y="467" text-anchor="middle" font-size="11" fill="#6d28d9">+ PostGIS · primary + standby</text>
+  <text x="168" y="484" text-anchor="middle" font-size="10" fill="#6d28d9">automated daily backups</text>
+  <text x="168" y="500" text-anchor="middle" font-size="10" fill="#6d28d9">port 5432 (private network)</text>
+
+  <!-- Managed Redis -->
+  <rect x="313" y="428" width="200" height="88" rx="8" fill="#fee2e2" stroke="#ef4444" stroke-width="2"/>
+  <text x="413" y="450" text-anchor="middle" font-size="12" font-weight="bold" fill="#b91c1c">Managed Redis 7</text>
+  <text x="413" y="467" text-anchor="middle" font-size="11" fill="#b91c1c">cache · pub-sub</text>
+  <text x="413" y="484" text-anchor="middle" font-size="11" fill="#b91c1c">Celery task queue</text>
+  <text x="413" y="500" text-anchor="middle" font-size="10" fill="#b91c1c">port 6379 (private network)</text>
+
+  <!-- DO Spaces -->
+  <rect x="528" y="428" width="220" height="88" rx="8" fill="#cffafe" stroke="#06b6d4" stroke-width="2"/>
+  <text x="638" y="450" text-anchor="middle" font-size="12" font-weight="bold" fill="#0e7490">DO Spaces + CDN</text>
+  <text x="638" y="467" text-anchor="middle" font-size="11" fill="#0e7490">object storage (S3-compat)</text>
+  <text x="638" y="484" text-anchor="middle" font-size="11" fill="#0e7490">avatars · file uploads</text>
+  <text x="638" y="500" text-anchor="middle" font-size="10" fill="#0e7490">static web assets via CDN</text>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- ROW 5: External Third-Party Services    -->
+  <!-- ═══════════════════════════════════════ -->
+
+  <!-- Stripe -->
+  <rect x="41" y="555" width="150" height="70" rx="8" fill="#f3e8ff" stroke="#9333ea" stroke-width="2"/>
+  <text x="116" y="578" text-anchor="middle" font-size="12" font-weight="bold" fill="#7e22ce">Stripe</text>
+  <text x="116" y="595" text-anchor="middle" font-size="10" fill="#7e22ce">subscriptions + billing</text>
+  <text x="116" y="611" text-anchor="middle" font-size="10" fill="#7e22ce">webhooks</text>
+
+  <!-- Resend -->
+  <rect x="208" y="555" width="150" height="70" rx="8" fill="#cffafe" stroke="#06b6d4" stroke-width="2"/>
+  <text x="283" y="578" text-anchor="middle" font-size="12" font-weight="bold" fill="#0e7490">Resend</text>
+  <text x="283" y="595" text-anchor="middle" font-size="10" fill="#0e7490">transactional email</text>
+  <text x="283" y="611" text-anchor="middle" font-size="10" fill="#0e7490">booking notifications</text>
+
+  <!-- Twilio -->
+  <rect x="375" y="555" width="150" height="70" rx="8" fill="#fee2e2" stroke="#ef4444" stroke-width="2"/>
+  <text x="450" y="578" text-anchor="middle" font-size="12" font-weight="bold" fill="#b91c1c">Twilio</text>
+  <text x="450" y="595" text-anchor="middle" font-size="10" fill="#b91c1c">SMS notifications</text>
+  <text x="450" y="611" text-anchor="middle" font-size="10" fill="#b91c1c">phone verification</text>
+
+  <!-- Expo Push -->
+  <rect x="542" y="555" width="150" height="70" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
+  <text x="617" y="578" text-anchor="middle" font-size="12" font-weight="bold" fill="#1e40af">Expo Push</text>
+  <text x="617" y="595" text-anchor="middle" font-size="10" fill="#1e40af">push notifications</text>
+  <text x="617" y="611" text-anchor="middle" font-size="10" fill="#1e40af">APNs + FCM routing</text>
+
+  <!-- Mapbox -->
+  <rect x="709" y="555" width="150" height="70" rx="8" fill="#dcfce7" stroke="#22c55e" stroke-width="2"/>
+  <text x="784" y="578" text-anchor="middle" font-size="12" font-weight="bold" fill="#15803d">Mapbox</text>
+  <text x="784" y="595" text-anchor="middle" font-size="10" fill="#15803d">maps + geocoding</text>
+  <text x="784" y="611" text-anchor="middle" font-size="10" fill="#15803d">geographic search UI</text>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- ARROWS                                  -->
+  <!-- ═══════════════════════════════════════ -->
+
+  <!-- Clients → Cloudflare (4 downward arrows) -->
+  <line x1="106" y1="110" x2="106" y2="150" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="268" y1="110" x2="268" y2="150" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="422" y1="110" x2="422" y2="150" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="795" y1="110" x2="795" y2="150" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="300" y="144" text-anchor="middle" font-size="9" fill="#64748b">HTTPS / WSS</text>
+
+  <!-- Cloudflare → Load Balancer -->
+  <line x1="450" y1="205" x2="450" y2="250" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Load Balancer → API Droplets (fork) -->
+  <!-- Fork at y=322, horizontal bar from API1 center (128) to LB center (450) -->
+  <line x1="450" y1="300" x2="450" y2="322" stroke="#64748b" stroke-width="1.5"/>
+  <line x1="128" y1="322" x2="450" y2="322" stroke="#64748b" stroke-width="1.5"/>
+  <line x1="128" y1="322" x2="128" y2="340" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="322" y1="322" x2="322" y2="340" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- API tier → Data tier (downward labeled arrow from between the two API boxes) -->
+  <line x1="225" y1="412" x2="225" y2="428" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="237" y="422" font-size="9" fill="#64748b">SQL · Cache · Storage</text>
+
+  <!-- Celery Worker → Redis (diagonal: workers pull from Redis queue) -->
+  <line x1="547" y1="412" x2="413" y2="428" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- DigitalOcean → External Services -->
+  <line x1="450" y1="535" x2="450" y2="555" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="462" y="548" font-size="9" fill="#64748b">API calls</text>
+
+</svg>

@@ -7,8 +7,7 @@ export function useUpdateProfile() {
     mutationFn: (body: { display_name?: string; phone?: string; avatar_url?: string }) =>
       apiClient.users.updateMe(body),
     onSuccess: () => {
-      // Invalidate the auth/me query so useAuth() picks up the new display_name / avatar
-      qc.invalidateQueries({ queryKey: ["auth", "me"] });
+      qc.invalidateQueries({ queryKey: ["me"] });
     },
   });
 }

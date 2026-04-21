@@ -26,6 +26,8 @@ import type {
   UserCreate,
   UserUpdate,
   ProviderAnalytics,
+  CustomerProfile,
+  CustomerProfileUpdate,
 } from "@mysitter/types";
 
 export interface ApiClientConfig {
@@ -214,6 +216,14 @@ export class ApiClient {
 
     addPhoto: (url: string) =>
       this.request<ProviderProfile>("POST", "/providers/me/photos", { url }),
+  };
+
+  // ─── Customer Profile ─────────────────────────────────────────────────────
+
+  customerProfile = {
+    get: () => this.request<CustomerProfile>("GET", "/customer-profile"),
+
+    update: (body: CustomerProfileUpdate) => this.request<CustomerProfile>("PUT", "/customer-profile", body),
   };
 
   // ─── Bookings ─────────────────────────────────────────────────────────────
