@@ -9,7 +9,6 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import requests
-import resend
 from dateutil.rrule import rrulestr
 from sqlalchemy import create_engine, select, func
 from sqlalchemy.orm import Session as SyncSession
@@ -18,6 +17,7 @@ from app.core.config import settings
 from app.models.booking import Booking, BookingOccurrence, BookingStatus
 from app.models.messaging import Conversation, Message
 from app.models.user import User
+from app.core.email import send_email_sync
 from app.workers.celery_app import celery_app
 from app.workers.email_templates import (
     BookingCancelledTemplate,
@@ -199,16 +199,14 @@ def notify_message_email(conversation_id: str, recipient_user_id: str, sender_na
             return
 
         recipient = session.scalar(select(User).where(User.id == recipient_uuid))
-        if not recipient or not settings.resend_api_key:
+        if not recipient:
             return
 
-        resend.api_key = settings.resend_api_key
-        resend.Emails.send({
-            "from": settings.email_from,
-            "to": [recipient.email],
-            "subject": f"You have a new message from {sender_name}",
-            "html": f"<p>You have a new message from {sender_name}.</p>",
-        })
+        send_email_sync(
+            recipient.email,
+            f"You have a new message from {sender_name}",
+            f"<p>You have a new message from {sender_name}.</p>",
+        )
     engine.dispose()
 
 
@@ -350,22 +348,16 @@ def _send_subscription_renewal_email(user_id: str, tier: str, period_end_iso: st
     engine = create_engine(settings.database_sync_url)
     with SyncSession(engine) as session:
         user = session.scalar(select(User).where(User.id == uuid.UUID(user_id)))
-        if not user or not settings.resend_api_key:
+        if not user:
             return
 
-        resend.api_key = settings.resend_api_key
         template = SubscriptionRenewalTemplate(
             user_name=user.display_name,
             tier=tier,
             renewal_date=datetime.fromisoformat(period_end_iso).strftime("%B %d, %Y"),
             portal_url=portal_url,
         )
-        resend.Emails.send({
-            "from": settings.email_from,
-            "to": [user.email],
-            "subject": template.subject(),
-            "html": template.html_body(),
-        })
+        send_email_sync(user.email, template.subject(), template.html_body())
     engine.dispose()
 
 
@@ -376,14 +368,8 @@ def _send_admin_notification(user_id: str, subject: str, message: str, channels:
         if not user:
             return
 
-        if "email" in channels and settings.resend_api_key:
-            resend.api_key = settings.resend_api_key
-            resend.Emails.send({
-                "from": settings.email_from,
-                "to": [user.email],
-                "subject": subject,
-                "html": message,
-            })
+        if "email" in channels:
+            send_email_sync(user.email, subject, message)
         
         if "sms" in channels and user.phone and settings.twilio_account_sid and settings.twilio_auth_token:
             from twilio.rest import Client as TwilioClient
@@ -434,58 +420,36 @@ def _notify_booking(booking_id: str, event: str) -> None:
         )
 
         # Email
-        if settings.resend_api_key:
-            resend.api_key = settings.resend_api_key
-            if event == "PENDING":
-                template = BookingRequestTemplate(
-                    provider_name=provider.display_name,
-                    customer_name=customer.display_name,
-                    start_at=booking.start_at.strftime("%A, %B %d at %I:%M %p"),
-                    end_at=booking.end_at.strftime("%I:%M %p"),
-                    service_type=booking.service_type.value,
-                )
-                resend.Emails.send({
-                    "from": settings.email_from,
-                    "to": [provider.email],
-                    "subject": template.subject(),
-                    "html": template.html_body(),
-                })
-            elif event == "CONFIRMED":
-                template = BookingConfirmedTemplate(
-                    customer_name=customer.display_name,
-                    provider_name=provider.display_name,
-                    start_at=booking.start_at.strftime("%A, %B %d at %I:%M %p"),
-                    end_at=booking.end_at.strftime("%I:%M %p"),
-                )
-                resend.Emails.send({
-                    "from": settings.email_from,
-                    "to": [customer.email],
-                    "subject": template.subject(),
-                    "html": template.html_body(),
-                })
-            elif event == "CANCELLED":
-                template = BookingCancelledTemplate(
-                    recipient_name=customer.display_name,
-                    booking_start_at=booking.start_at.strftime("%A, %B %d at %I:%M %p"),
-                )
-                resend.Emails.send({
-                    "from": settings.email_from,
-                    "to": [customer.email],
-                    "subject": template.subject(),
-                    "html": template.html_body(),
-                })
-            elif event == "COMPLETED":
-                template = BookingCompletedTemplate(
-                    customer_name=customer.display_name,
-                    provider_name=provider.display_name,
-                    review_link=f"{settings.web_base_url}/bookings/{booking.id}",
-                )
-                resend.Emails.send({
-                    "from": settings.email_from,
-                    "to": [customer.email],
-                    "subject": template.subject(),
-                    "html": template.html_body(),
-                })
+        if event == "PENDING":
+            template = BookingRequestTemplate(
+                provider_name=provider.display_name,
+                customer_name=customer.display_name,
+                start_at=booking.start_at.strftime("%A, %B %d at %I:%M %p"),
+                end_at=booking.end_at.strftime("%I:%M %p"),
+                service_type=booking.service_type.value,
+            )
+            send_email_sync(provider.email, template.subject(), template.html_body())
+        elif event == "CONFIRMED":
+            template = BookingConfirmedTemplate(
+                customer_name=customer.display_name,
+                provider_name=provider.display_name,
+                start_at=booking.start_at.strftime("%A, %B %d at %I:%M %p"),
+                end_at=booking.end_at.strftime("%I:%M %p"),
+            )
+            send_email_sync(customer.email, template.subject(), template.html_body())
+        elif event == "CANCELLED":
+            template = BookingCancelledTemplate(
+                recipient_name=customer.display_name,
+                booking_start_at=booking.start_at.strftime("%A, %B %d at %I:%M %p"),
+            )
+            send_email_sync(customer.email, template.subject(), template.html_body())
+        elif event == "COMPLETED":
+            template = BookingCompletedTemplate(
+                customer_name=customer.display_name,
+                provider_name=provider.display_name,
+                review_link=f"{settings.web_base_url}/bookings/{booking.id}",
+            )
+            send_email_sync(customer.email, template.subject(), template.html_body())
 
         # SMS
         if settings.twilio_account_sid and settings.twilio_auth_token:
@@ -613,22 +577,17 @@ def _booking_notification_copy(
 
 
 def _send_welcome(user_id: str) -> None:
-    """Load the user and send a welcome email via Resend."""
-    if not settings.resend_api_key:
-        return
-
+    """Load the user and send a welcome email."""
     engine = create_engine(settings.database_sync_url)
     with SyncSession(engine) as session:
         user = session.scalar(select(User).where(User.id == uuid.UUID(user_id)))
         if not user:
             return
 
-        resend.api_key = settings.resend_api_key
-        resend.Emails.send({
-            "from": settings.email_from,
-            "to": [user.email],
-            "subject": f"Welcome to mysitter, {user.display_name}!",
-            "html": f"<p>Hi {user.display_name}, welcome to MySitter!</p>",
-        })
+        send_email_sync(
+            user.email,
+            f"Welcome to mysitter, {user.display_name}!",
+            f"<p>Hi {user.display_name}, welcome to MySitter!</p>",
+        )
 
     engine.dispose()

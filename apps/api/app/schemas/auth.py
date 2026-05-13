@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class RegisterRequest(BaseModel):
@@ -36,3 +36,12 @@ class TotpSetupResponse(BaseModel):
 class RefreshRequest(BaseModel):
     """Body is unused — refresh token comes from httpOnly cookie."""
     pass
+
+
+class PasswordResetRequestBody(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirmBody(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)

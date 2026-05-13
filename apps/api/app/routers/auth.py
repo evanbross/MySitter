@@ -13,6 +13,8 @@ from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
     PasskeyAuthOptionsRequest,
+    PasswordResetConfirmBody,
+    PasswordResetRequestBody,
     RegisterRequest,
     TokenResponse,
     TotpSetupResponse,
@@ -64,6 +66,34 @@ async def refresh_token(
 async def logout(response: Response) -> None:
     """Clear the refresh token cookie."""
     response.delete_cookie("refresh_token")
+
+
+# ─── Password reset ───────────────────────────────────────────────────────────
+
+@router.post("/password-reset/request", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/minute")
+async def password_reset_request(
+    request: Request,
+    body: PasswordResetRequestBody,
+    db: AsyncSession = Depends(get_db),
+    redis: aioredis.Redis = Depends(get_redis),
+) -> None:
+    """Send a password-reset email. Always returns 204 to prevent user enumeration."""
+    from app.services.auth_service import AuthService
+    await AuthService(db, redis).request_password_reset(body.email)
+
+
+@router.post("/password-reset/confirm", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("10/minute")
+async def password_reset_confirm(
+    request: Request,
+    body: PasswordResetConfirmBody,
+    db: AsyncSession = Depends(get_db),
+    redis: aioredis.Redis = Depends(get_redis),
+) -> None:
+    """Verify the reset token and update the user's password."""
+    from app.services.auth_service import AuthService
+    await AuthService(db, redis).confirm_password_reset(body.token, body.new_password)
 
 
 # ─── Passkeys ─────────────────────────────────────────────────────────────────

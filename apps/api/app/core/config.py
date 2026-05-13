@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _API_ROOT = Path(__file__).resolve().parents[2]  # apps/api/
@@ -49,19 +50,56 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     twilio_from_number: str = ""
 
-    # ─── Resend ───────────────────────────────────────────────────────────────
-    resend_api_key: str = ""
+    # ─── Email (SMTP via ForwardEmail) ────────────────────────────────────────
+    smtp_host: str = "smtp.forwardemail.net"
+    smtp_port: int = 587
+    smtp_username: str = ""   # sending address (e.g. noreply@mysitter.com)
+    smtp_password: str = ""   # ForwardEmail API key
     email_from: str = "noreply@mysitter.com"
 
     # ─── Mapbox ───────────────────────────────────────────────────────────────
     mapbox_secret_token: str = ""
 
     # ─── Object Storage ───────────────────────────────────────────────────────
-    spaces_endpoint: str = ""
-    spaces_key: str = ""
-    spaces_secret: str = ""
-    spaces_bucket: str = "mysitter"
-    spaces_region: str = "nyc3"
+    spaces_endpoint: str = Field(
+        default="",
+        validation_alias=AliasChoices("CLOUDFLARE_R2_ENDPOINT", "SPACES_ENDPOINT"),
+    )
+    spaces_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("CLOUDFLARE_R2_DATA_RW_ACCESS_KEY", "SPACES_KEY"),
+    )
+    spaces_secret: str = Field(
+        default="",
+        validation_alias=AliasChoices("CLOUDFLARE_R2_DATA_RW_SECRET", "SPACES_SECRET"),
+    )
+    spaces_bucket: str = Field(
+        default="mysitter",
+        validation_alias=AliasChoices("CLOUDFLARE_R2_SITTER_BUCKET", "SPACES_BUCKET"),
+    )
+    spaces_region: str = Field(
+        default="auto",
+        validation_alias=AliasChoices("CLOUDFLARE_R2_REGION", "SPACES_REGION"),
+    )
+    spaces_public_base_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("CLOUDFLARE_R2_PUBLIC_BASE_URL", "SPACES_PUBLIC_BASE_URL"),
+    )
+    spaces_account_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("CLOUDFLARE_R2_ACCOUNT_ID"),
+    )
+    spaces_admin_token: str = Field(default="", alias="CLOUDFLARE_R2_ADMIN_TOKEN")
+    spaces_admin_access_key: str = Field(default="", alias="CLOUDFLARE_R2_ADMIN_ACCESS_KEY")
+    spaces_admin_secret: str = Field(default="", alias="CLOUDFLARE_R2_ADMIN_SECRET")
+    spaces_admin_jurisdiction_endpoint: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "CLOUDFLARE_R2_ADMIN_JURISIDICTION_ENDPOINT",
+            "CLOUDFLARE_R2_ADMIN_JURISDICTION_ENDPOINT",
+        ),
+    )
+    spaces_data_rw_token: str = Field(default="", alias="CLOUDFLARE_R2_DATA_RW_TOKEN")
 
     # ─── Multi-region ─────────────────────────────────────────────────────────
     read_replica_url: str = ""   # postgresql+asyncpg:// for read replica; falls back to database_url if empty

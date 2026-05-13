@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import LoginPage from "@/pages/auth/LoginPage";
 import RegisterPage from "@/pages/auth/RegisterPage";
+import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
 import SearchPage from "@/pages/SearchPage";
 import ProviderProfilePage from "@/pages/ProviderProfilePage";
 import BookingsPage from "@/pages/BookingsPage";
@@ -33,6 +34,7 @@ export default function App() {
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/providers/:providerId" element={<ProviderProfilePage />} />
         <Route path="/sitters/:slug" element={<ProviderProfilePage />} />

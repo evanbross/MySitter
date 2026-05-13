@@ -30,10 +30,18 @@ class UserUpdateRequest(BaseModel):
     def validate_avatar_url(cls, v: str | None) -> str | None:
         if v is None:
             return v
-        if settings.spaces_endpoint and settings.spaces_bucket:
-            allowed_prefix = settings.spaces_endpoint.replace(
-                "://", f"://{settings.spaces_bucket}."
-            )
+        allowed_prefix = settings.spaces_public_base_url.strip().rstrip("/")
+        if not allowed_prefix and settings.spaces_endpoint and settings.spaces_bucket:
+            if settings.spaces_endpoint.endswith(".r2.cloudflarestorage.com"):
+                allowed_prefix = (
+                    f"{settings.spaces_endpoint.rstrip('/')}/{settings.spaces_bucket}"
+                )
+            else:
+                allowed_prefix = settings.spaces_endpoint.replace(
+                    "://", f"://{settings.spaces_bucket}."
+                )
+
+        if allowed_prefix:
             if not v.startswith(allowed_prefix):
                 raise ValueError(
                     f"avatar_url must be a URL from the platform storage domain. "

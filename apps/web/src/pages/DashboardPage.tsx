@@ -12,6 +12,7 @@ export default function DashboardPage() {
   if (!user) return null;
 
   return (
+    <div className="min-h-screen bg-[url('/home-background.svg')] bg-cover bg-top">
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
       <Card>
         <CardContent className="flex items-center gap-4 pt-6">
@@ -27,6 +28,7 @@ export default function DashboardPage() {
       </Card>
 
       {user.role === "CUSTOMER" ? <CustomerDashboard /> : <ProviderDashboard />}
+    </div>
     </div>
   );
 }

@@ -154,6 +154,12 @@ export class ApiClient {
       this.request<{ verified: boolean }>("POST", "/auth/totp/verify", {
         code,
       }),
+
+    requestPasswordReset: (email: string) =>
+      this.request<void>("POST", "/auth/password-reset/request", { email }, true),
+
+    confirmPasswordReset: (token: string, newPassword: string) =>
+      this.request<void>("POST", "/auth/password-reset/confirm", { token, new_password: newPassword }, true),
   };
 
   // ─── Users ─────────────────────────────────────────────────────────────────

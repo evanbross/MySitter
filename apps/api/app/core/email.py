@@ -19,10 +19,16 @@ Usage (in a Celery task):
         service_type="Pet Sitting",
     )
 """
+import logging
 import pathlib
+import smtplib
 from datetime import datetime, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+logger = logging.getLogger(__name__)
 
 from app.core.config import settings
 
@@ -68,3 +74,32 @@ class EmailRenderer:
 
 # Module-level singleton — safe to share across Celery worker threads.
 email_renderer = EmailRenderer()
+
+
+def send_email_sync(to: str, subject: str, html: str) -> None:
+    """
+    Send an HTML email via SMTP (ForwardEmail). No-ops if smtp_username is unset.
+    Safe to call from Celery workers (synchronous, no event loop required).
+    """
+    if not settings.smtp_username or not settings.smtp_password:
+        return
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = settings.email_from
+    msg["To"] = to
+    msg.attach(MIMEText(html, "html"))
+
+    logger.info("Sending email to=%s subject=%r via %s:%s from=%s", to, subject, settings.smtp_host, settings.smtp_port, settings.email_from)
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as smtp:
+        smtp.ehlo()
+        smtp.starttls()
+        smtp.login(settings.smtp_username, settings.smtp_password)
+        smtp.sendmail(settings.email_from, [to], msg.as_string())
+    logger.info("Email sent successfully to=%s", to)
+
+
+async def send_email_async(to: str, subject: str, html: str) -> None:
+    """Async wrapper around send_email_sync — runs in a thread to avoid blocking the event loop."""
+    import asyncio
+    await asyncio.to_thread(send_email_sync, to, subject, html)

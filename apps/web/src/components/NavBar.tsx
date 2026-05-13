@@ -5,7 +5,7 @@ import { Menu } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 function initials(name: string) {
@@ -127,7 +127,9 @@ export function NavBar() {
             </Button>
           </DialogTrigger>
           <DialogContent className="w-[92vw] rounded-lg p-4">
-            <div className="mb-4 text-lg font-semibold text-slate-900">Navigation</div>
+            <DialogHeader className="mb-2">
+              <DialogTitle className="text-slate-900">Navigation</DialogTitle>
+            </DialogHeader>
             <div className="flex flex-col gap-2">
               {links.map(({ to, label }) => (
                 <Link
@@ -145,11 +147,18 @@ export function NavBar() {
             </div>
             <div className="mt-4 border-t border-slate-200 pt-4">
               {user ? (
-                <div className="flex items-center justify-between gap-3">
+                <div className="space-y-3">
                   <div className="text-sm text-slate-600">{user.display_name}</div>
-                  <Button variant="outline" onClick={() => logout()}>
-                    Sign out
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button className="flex-1" variant="outline" asChild>
+                      <Link to="/profile" onClick={() => setMobileOpen(false)}>
+                        Account Settings
+                      </Link>
+                    </Button>
+                    <Button variant="outline" onClick={() => logout()}>
+                      Sign out
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex gap-2">

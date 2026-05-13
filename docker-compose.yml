@@ -1,76 +1,35 @@
-version: "3.9"
+# Requires the shared infra stack to be running first:
+#   cd ../infra && docker-compose up -d
 
 services:
-  # ─── PostgreSQL 16 + PostGIS ───────────────────────────────────────────────
-  postgres:
-    image: postgis/postgis:16-3.4
-    container_name: mysitter_postgres
-    environment:
-      POSTGRES_USER: mysitter_user
-      POSTGRES_PASSWORD: mysitter
-      POSTGRES_DB: mysitter_db
-    ports:
-      - "5533:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mysitter_user -d mysitter_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ─── Redis 7 ───────────────────────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    container_name: mysitter_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # ─── Celery worker (local dev parity with production) ─────────────────────
   celery_worker:
     build:
       context: ./apps/api
       dockerfile: Dockerfile
     command: celery -A app.workers.celery_app worker --loglevel=debug --concurrency=2
+    env_file: ./apps/api/.env
     environment:
-      - DATABASE_SYNC_URL=postgresql://mysitter_user:mysitter@postgres:5432/mysitter_db
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - postgres
-      - redis
+      - REDIS_URL=redis://dev_redis:6379/0
     volumes:
       - ./apps/api:/app
+    networks:
+      - dev_infra
 
-  # ─── Celery beat (scheduled tasks — one process only) ────────────────────
+  # ─── Celery beat (scheduled tasks — one process only) ─────────────────────
   celery_beat:
     build:
       context: ./apps/api
       dockerfile: Dockerfile
     command: celery -A app.workers.celery_app beat --loglevel=debug
+    env_file: ./apps/api/.env
     environment:
-      - DATABASE_SYNC_URL=postgresql://mysitter_user:mysitter@postgres:5432/mysitter_db
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - postgres
-      - redis
+      - REDIS_URL=redis://dev_redis:6379/0
     volumes:
       - ./apps/api:/app
+    networks:
+      - dev_infra
 
-  # ─── MailHog (local email capture — no real emails sent in dev) ────────────
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: mysitter_mailhog
-    ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Web UI at http://localhost:8025
-
-volumes:
-  postgres_data:
-  redis_data:
+networks:
+  dev_infra:
+    external: true

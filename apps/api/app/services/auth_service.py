@@ -16,6 +16,7 @@ Passkey flow overview:
     4. Client POSTs the assertion to POST /auth/passkey/authenticate
     5. Server verifies, updates sign_count, issues tokens
 """
+import secrets
 import uuid
 import re
 
@@ -48,6 +49,7 @@ from app.workers.tasks import send_welcome_email
 _REFRESH_COOKIE = "refresh_token"
 _COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
 _CHALLENGE_TTL = 300  # 5 minutes
+_PASSWORD_RESET_TTL = 600  # 10 minutes
 
 
 def _reg_challenge_key(user_id: uuid.UUID) -> str:
@@ -305,6 +307,46 @@ class AuthService:
 
         self._set_refresh_cookie(response, create_refresh_token(user.id))
         return TokenResponse(access_token=create_access_token(user.id))
+
+    # ─── Password Reset ───────────────────────────────────────────────────────
+
+    async def request_password_reset(self, email: str) -> None:
+        """
+        Generate a single-use reset token, store it in Redis, and send the
+        reset email inline. Always returns without error to prevent user enumeration.
+        """
+        from app.core.email import email_renderer, send_email_async
+
+        user = await self._db.scalar(select(User).where(User.email == email))
+        if not user:
+            return  # silent — don't reveal whether the address exists
+
+        token = secrets.token_hex(32)
+        await self._redis.set(f"password_reset:{token}", str(user.id), ex=_PASSWORD_RESET_TTL)
+
+        reset_url = f"{settings.web_base_url}/reset-password?token={token}"
+        html = email_renderer.render(
+            "password_reset.html",
+            user_name=user.display_name,
+            reset_url=reset_url,
+        )
+        await send_email_async(user.email, "Reset your mysitter password", html)
+
+    async def confirm_password_reset(self, token: str, new_password: str) -> None:
+        """Validate the token, update the password, and invalidate the token."""
+        user_id_str: bytes | None = await self._redis.getdel(f"password_reset:{token}")
+        if not user_id_str:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Reset link is invalid or has expired.",
+            )
+
+        user = await self._db.get(User, uuid.UUID(user_id_str.decode()))
+        if not user:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User not found.")
+
+        user.password_hash = hash_password(new_password)
+        await self._db.commit()
 
     # ─── TOTP ─────────────────────────────────────────────────────────────────
 

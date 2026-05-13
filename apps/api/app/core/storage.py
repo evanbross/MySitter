@@ -4,20 +4,21 @@ Object storage abstraction layer.
 Two-phase upload flow:
   1. Client calls POST /uploads/presign → receives (upload_url, public_url, key).
   2. Client PUTs the file directly to `upload_url` (no server proxy).
-  3. Client calls POST /providers/me/photos with `public_url` to persist it.
+  3. Client persists `public_url` on the user/profile record.
 
-SpacesStorageRepository targets DigitalOcean Spaces (S3-compatible).
-Swap by providing a different AbstractStorageRepository implementation and
-wiring it into get_storage() — callers are unaware of the underlying provider.
+The current implementation uses an S3-compatible backend. Credentials point at
+Cloudflare R2 in the current environment, but callers do not depend on the
+underlying provider.
 
 Performance note: the boto3 client is constructed once at module import time
-(_spaces_client_singleton) and reused for every request. generate_presigned_url
+(_storage_client_singleton) and reused for every request. generate_presigned_url
 is CPU-only (HMAC-SHA256 signing — no network I/O), so there is nothing to pool;
 the cost being avoided is the 2–5 ms of credential loading and endpoint-resolver
 construction that boto3.client() performs on each instantiation.
 """
 import abc
 import uuid
+from urllib.parse import urlsplit
 
 import boto3
 from botocore.config import Config
@@ -55,7 +56,7 @@ class AbstractStorageRepository(abc.ABC):
 # generate_presigned_url holds no I/O state — it only reads immutable config.
 # If you later add actual S3 I/O operations (upload, download), switch to
 # aioboto3 with an async session instead.
-_spaces_client_singleton = boto3.client(
+_storage_client_singleton = boto3.client(
     "s3",
     region_name=settings.spaces_region,
     endpoint_url=settings.spaces_endpoint,
@@ -69,18 +70,35 @@ _spaces_client_singleton = boto3.client(
     ),
 )
 
-_spaces_public_base = settings.spaces_endpoint.replace(
-    "://", f"://{settings.spaces_bucket}."
-)
+
+def _build_public_base_url() -> str:
+    explicit_public_base = settings.spaces_public_base_url.strip().rstrip("/")
+    if explicit_public_base:
+        return explicit_public_base
+
+    endpoint = settings.spaces_endpoint.strip().rstrip("/")
+    if not endpoint:
+        return ""
+
+    parsed = urlsplit(endpoint)
+    if parsed.netloc.endswith(".r2.cloudflarestorage.com"):
+        # R2 public reads should use a custom domain or r2.dev URL. Fall back to
+        # a path-style URL only if no explicit public base has been configured.
+        return f"{endpoint}/{settings.spaces_bucket}"
+
+    return endpoint.replace("://", f"://{settings.spaces_bucket}.")
+
+
+_storage_public_base = _build_public_base_url()
 
 
 class SpacesStorageRepository(AbstractStorageRepository):
-    """DigitalOcean Spaces (S3-compatible) implementation backed by a shared boto3 client."""
+    """S3-compatible object storage implementation backed by a shared boto3 client."""
 
     def __init__(self) -> None:
-        self._client = _spaces_client_singleton
+        self._client = _storage_client_singleton
         self._bucket = settings.spaces_bucket
-        self._public_base = _spaces_public_base
+        self._public_base = _storage_public_base
 
     def generate_presigned_put(
         self,
@@ -94,7 +112,6 @@ class SpacesStorageRepository(AbstractStorageRepository):
                 "Bucket": self._bucket,
                 "Key": key,
                 "ContentType": content_type,
-                "ACL": "public-read",
             },
             ExpiresIn=expires_in,
             HttpMethod="PUT",

@@ -43,7 +43,10 @@
       "Bash(.venv/Scripts/pip show *)",
       "Bash(.venv/Scripts/pip index *)",
       "Bash(\"F:/Evan-F/Projects/MySitter/apps/api/.venv/Scripts/pip.exe\" install *)",
-      "Bash(.venv/Scripts/python.exe -m alembic current)"
+      "Bash(.venv/Scripts/python.exe -m alembic current)",
+      "Bash(docker-compose ps *)",
+      "Bash(docker exec mysitter_postgres *)",
+      "Bash(tasklist)"
     ]
   }
 }

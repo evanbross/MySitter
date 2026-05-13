@@ -53,7 +53,6 @@ pyotp>=2.9.0
 # Payments
 stripe>=11.0.0
 # Notifications
-resend>=2.0.0
 twilio>=9.0.0
 # WebAuthn (passkeys)
 webauthn>=2.2.0

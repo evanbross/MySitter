@@ -3,12 +3,13 @@ import { useNavigate, Link } from "react-router-dom";
 import { ApiClientError } from "@mysitter/api-client";
 import { useAuth } from "@/hooks/useAuth";
 import { usePasskeyAuth } from "@/hooks/usePasskeyAuth";
+import { apiClient } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type Step = "credentials" | "totp";
+type Step = "credentials" | "totp" | "forgot" | "forgot-sent";
 
 function isTotpRequired(err: Error): boolean {
   return (
@@ -29,6 +30,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   const isLoading = isLoggingIn || isPasskeyPending;
 
@@ -64,6 +66,20 @@ export default function LoginPage() {
     );
   }
 
+  async function handleForgotSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setIsSendingReset(true);
+    try {
+      await apiClient.auth.requestPasswordReset(email);
+      setStep("forgot-sent");
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setIsSendingReset(false);
+    }
+  }
+
   function handlePasskeyLogin() {
     if (!email) {
       setError("Enter your email address first, then click Sign in with passkey.");
@@ -77,7 +93,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8">
+    <div className="flex min-h-screen items-center justify-center bg-[url('/home-background.svg')] bg-cover bg-top px-4 py-8">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
           <p className="text-3xl font-bold text-slate-900">MySitter</p>
@@ -103,7 +119,16 @@ export default function LoginPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Password</Label>
+                    <button
+                      type="button"
+                      className="text-xs text-slate-500 underline hover:text-slate-800"
+                      onClick={() => { setError(null); setStep("forgot"); }}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
                   <Input
                     id="password"
                     type="password"
@@ -121,6 +146,55 @@ export default function LoginPage() {
                   {isPasskeyPending ? "Waiting for passkey..." : "Sign in with passkey"}
                 </Button>
               </form>
+            )}
+
+            {step === "forgot" && (
+              <form onSubmit={handleForgotSubmit} className="space-y-4">
+                <p className="text-sm text-slate-600">
+                  Enter your email address and we'll send you a link to reset your password.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email">Email</Label>
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                </div>
+                {error ? <p className="text-sm text-red-600">{error}</p> : null}
+                <Button type="submit" disabled={isSendingReset} className="w-full">
+                  {isSendingReset ? "Sending..." : "Send reset link"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => { setStep("credentials"); setError(null); }}
+                >
+                  Back to sign in
+                </Button>
+              </form>
+            )}
+
+            {step === "forgot-sent" && (
+              <div className="space-y-4 text-center">
+                <p className="text-sm text-slate-700">
+                  If an account exists for <strong>{email}</strong>, you'll receive a reset link
+                  within a few minutes. Check your spam folder if it doesn't arrive.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => { setStep("credentials"); setError(null); }}
+                >
+                  Back to sign in
+                </Button>
+              </div>
             )}
 
             {step === "totp" && (
