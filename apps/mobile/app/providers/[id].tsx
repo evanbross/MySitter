@@ -1,3 +1,12 @@
+/*!
+ * Copyright (c) 2026 ZombieTech LLC. All rights reserved.
+ *
+ * SPDX-License-Identifier: PolyForm-Strict-1.0.0
+ * See LICENSE in the project root for the full terms.
+ *
+ * Licensing inquiries: license@zombietech.biz
+ */
+
 import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";

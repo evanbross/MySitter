@@ -1,3 +1,12 @@
+/*!
+ * Copyright (c) 2026 ZombieTech LLC. All rights reserved.
+ *
+ * SPDX-License-Identifier: PolyForm-Strict-1.0.0
+ * See LICENSE in the project root for the full terms.
+ *
+ * Licensing inquiries: license@zombietech.biz
+ */
+
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { Stack } from "expo-router";

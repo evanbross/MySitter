@@ -1,3 +1,12 @@
+# =============================================================================
+# Copyright (c) 2026 ZombieTech LLC. All rights reserved.
+#
+# SPDX-License-Identifier: PolyForm-Strict-1.0.0
+# See LICENSE in the project root for the full terms.
+#
+# Licensing inquiries: license@zombietech.biz
+# =============================================================================
+
 # Import all models here so Alembic's autogenerate can discover them.
 from app.core.database import Base  # noqa: F401
 from app.models.booking import Booking, BookingOccurrence  # noqa: F401

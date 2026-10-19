@@ -1,3 +1,12 @@
+# =============================================================================
+# Copyright (c) 2026 ZombieTech LLC. All rights reserved.
+#
+# SPDX-License-Identifier: PolyForm-Strict-1.0.0
+# See LICENSE in the project root for the full terms.
+#
+# Licensing inquiries: license@zombietech.biz
+# =============================================================================
+
 """
 Post-deploy smoke test. Run after each deployment to verify the new
 instance is healthy before cutting over traffic.

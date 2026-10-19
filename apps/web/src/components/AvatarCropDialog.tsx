@@ -1,3 +1,12 @@
+/*!
+ * Copyright (c) 2026 ZombieTech LLC. All rights reserved.
+ *
+ * SPDX-License-Identifier: PolyForm-Strict-1.0.0
+ * See LICENSE in the project root for the full terms.
+ *
+ * Licensing inquiries: license@zombietech.biz
+ */
+
 import { useCallback, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";

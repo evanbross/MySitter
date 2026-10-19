@@ -1,3 +1,12 @@
+# =============================================================================
+# Copyright (c) 2026 ZombieTech LLC. All rights reserved.
+#
+# SPDX-License-Identifier: PolyForm-Strict-1.0.0
+# See LICENSE in the project root for the full terms.
+#
+# Licensing inquiries: license@zombietech.biz
+# =============================================================================
+
 """
 Auth router: registration, login (password + TOTP), passkey flows, token refresh/logout.
 Full passkey implementation requires integrating py_webauthn — stubs are provided here
